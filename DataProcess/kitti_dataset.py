@@ -1,17 +1,18 @@
 import os
 import sys
-from typing import List
+from typing import List, Tuple
 
 import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-import kitti_utils
-from transformation import camera_to_lidar_box
-from kitti_utils import Object3D
-from config.kitti_config import CLASS_NAME_TO_ID
-
+import DataProcess.init_path as init_path
+import DataProcess.kitti_utils as kitti_utils
+from DataProcess.transformation import camera_to_lidar_box
+from DataProcess.kitti_utils import Object3D
+from Config.kitti_config import CLASS_NAME_TO_ID
+from Utils import visualization as vis
 
 
 class KittiDataset(Dataset):
@@ -76,9 +77,23 @@ class KittiDataset(Dataset):
         padded_matrix = np.zeros((fixed_size, matrix.shape[1]))
         padded_matrix[:n] = matrix
         return padded_matrix
-        
-    def __getitem__(self, index: int):
+
+    def __getitem__(self, index: int) -> Tuple[np.ndarray]:
         """Get the item at the specified index in the dataset"""
+        sample_id = int(self.sample_id_list[index])
+        calib = self.get_calib(sample_id)
+        img = self.get_image(sample_id)
+        pts_lidar= self.get_lidar(sample_id)
+
+        obj_list = self.filtrate_objects(self.get_label(sample_id))
+        box3d_list = kitti_utils.get_boxes3d(obj_list)
+        corners_3d = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
+        
+        # vis.show_image_with_boxes(img, obj_list, calib, True)
+        return pts_lidar, corners_3d
+    
+    """def __getitem__(self, index: int):
+        ''' Get the item at the specified index in the dataset'''
         sample_id = int(self.sample_id_list[index])
         calib = self.get_calib(sample_id)
         img_shape = (self.get_image(sample_id)).shape
@@ -125,42 +140,15 @@ class KittiDataset(Dataset):
         else:
             pts_input = ret_pts
 
-        # Generate training labels
-        cls_labels = self.generate_training_labels(ret_pts, box3d_list)
-
         sample_info['pts_input'] = pts_input
         sample_info['pts_rect'] = ret_pts
-        sample_info['cls_labels'] = cls_labels
         
         return sample_info
-
-    @staticmethod
-    def generate_training_labels(
-            pts_ret: np.ndarray, 
-            box3d_list: np.ndarray,
-            ) -> np.ndarray:
-        cls_label = np.zeros((pts_ret.shape[0]), dtype=np.int32)
-
-        corners = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
-        extend_boxes3d = kitti_utils.enlarge_box3d(box3d_list, extra_width=0.2)
-        extend_corners = kitti_utils.box3d_to_corner3d(extend_boxes3d, rotate=True)
-
-        for k in range(box3d_list.shape[0]):
-            box_corners = corners[k]
-            fg_pt_flag = kitti_utils.in_hull(pts_ret, box_corners)
-            cls_label[fg_pt_flag] = 1
-
-            # enlarge the bbox3d, ignore nearby points
-            extend_box_corners = extend_corners[k]
-            fg_enlarge_flag = kitti_utils.in_hull(pts_ret, extend_box_corners)
-            ignore_flag = np.logical_xor(fg_pt_flag, fg_enlarge_flag)
-            cls_label[ignore_flag] = -1
-
-        return cls_label
+    """
 
     def filtrate_objects(self, obj_list: np.ndarray) -> list:
         type_whitelist = self.classes
-        if self.mode == 'TRAIN':
+        if self.mode == 'train':
             type_whitelist = list(self.classes)
             if 'Car' in self.classes:
                 type_whitelist.append('Van')
@@ -229,7 +217,7 @@ class KittiDataset(Dataset):
                                                     calib.P2)  # convert rect cam to velo cord
             valid_list = []
             for i in range(labels.shape[0]):
-                if int(labels[i, 0]) in CLASS_NAME_TO_ID.values():  #config.CLASS_NAME_TO_ID.values(): BURAYI DUZELT
+                if int(labels[i, 0]) in CLASS_NAME_TO_ID.values():
                     valid_list.append(labels[i, 0])
 
             if len(valid_list) > 0:

@@ -5,269 +5,217 @@ import math
 import cv2
 import numpy as np
 import open3d as o3d
-#import mayavi.mlab as mlab
+import matplotlib.pyplot as plt
 
-sys.path.append('../')
-
-#from data_process import kitti_data_utils, kitti_bev_utils, transformation
-#import config.kitti_config as cnf
-
-
-def open_3d():
-    data_path = './dataset/kitti/training/velodyne'
-
-    big_data=[]
-
-    def read(num):
-        dr = os.listdir(data_path)
-        dr.sort()
-        for filename in range(num):
-            if dr[filename].endswith(".bin"):
-                data = np.fromfile(os.path.join(data_path, dr[filename]), dtype=np.float32)
-                data = data.reshape(-1, 4)
-                big_data.append(data)
-
-    read(10)
-
-    big_data = np.concatenate(big_data) if len(big_data) > 1 else big_data
-    big_data = np.array(big_data).squeeze()
-
-    # print(big_data.shape, big_data.ndim)
-    # print(big_data[:3, :].squeeze())
-
-    # Convert the Numpy array to a PointCloud object in Open3D
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(big_data[:, :3])
-
-    # Visualize the PointCloud
-    o3d.visualization.draw_geometries([pcd])
-
-
-def draw_gt_boxes3d(gt_boxes3d, fig, color=(1, 1, 1), line_width=2, draw_text=True, text_scale=(1, 1, 1),
-                    color_list=None):
-    ''' Draw 3D bounding boxes
-    Args:
-        gt_boxes3d: numpy array (n,8,3) for XYZs of the box corners
-        fig: mayavi figure handler
-        color: RGB value tuple in range (0,1), box line color
-        line_width: box line width
-        draw_text: boolean, if true, write box indices beside boxes
-        text_scale: three number tuple
-        color_list: a list of RGB tuple, if not None, overwrite color.
-    Returns:
-        fig: updated fig
-    '''
-    num = len(gt_boxes3d)
-    for n in range(num):
-        b = gt_boxes3d[n]
-        if color_list is not None:
-            color = color_list[n]
-        if draw_text: mlab.text3d(b[4, 0], b[4, 1], b[4, 2], '%d' % n, scale=text_scale, color=color, figure=fig)
-        for k in range(0, 4):
-            # http://docs.enthought.com/mayavi/mayavi/auto/mlab_helper_functions.html
-            i, j = k, (k + 1) % 4
-            mlab.plot3d([b[i, 0], b[j, 0]], [b[i, 1], b[j, 1]], [b[i, 2], b[j, 2]], color=color, tube_radius=None,
-                        line_width=line_width, figure=fig)
-
-            i, j = k + 4, (k + 1) % 4 + 4
-            mlab.plot3d([b[i, 0], b[j, 0]], [b[i, 1], b[j, 1]], [b[i, 2], b[j, 2]], color=color, tube_radius=None,
-                        line_width=line_width, figure=fig)
-
-            i, j = k, k + 4
-            mlab.plot3d([b[i, 0], b[j, 0]], [b[i, 1], b[j, 1]], [b[i, 2], b[j, 2]], color=color, tube_radius=None,
-                        line_width=line_width, figure=fig)
-    # mlab.show(1)
-    # mlab.view(azimuth=180, elevation=70, focalpoint=[ 12.0909996 , -1.04700089, -2.03249991], distance=62.0, figure=fig)
-    return fig
-
-
-def get_lidar_in_image_fov(pc_velo, calib, xmin, ymin, xmax, ymax,
-                           return_more=False, clip_distance=0.0):
-    ''' Filter lidar points, keep those in image FOV '''
-    pts_2d = calib.project_velo_to_image(pc_velo)
-    fov_inds = (pts_2d[:, 0] < xmax) & (pts_2d[:, 0] >= xmin) & \
-               (pts_2d[:, 1] < ymax) & (pts_2d[:, 1] >= ymin)
-    fov_inds = fov_inds & (pc_velo[:, 0] > clip_distance)
-    imgfov_pc_velo = pc_velo[fov_inds, :]
-    if return_more:
-        return imgfov_pc_velo, pts_2d, fov_inds
-    else:
-        return imgfov_pc_velo
+from . import init_path
+from DataProcess import kitti_utils, transformation
+import Config.kitti_config as cnf
 
 
 def show_image_with_boxes(img, objects, calib, show3d=False):
     ''' Show image with 2D bounding boxes '''
-
     img2 = np.copy(img)  # for 3d bbox
     for obj in objects:
-        if obj.type == 'DontCare': continue
-        # cv2.rectangle(img2, (int(obj.xmin),int(obj.ymin)),
-        #    (int(obj.xmax),int(obj.ymax)), (0,255,0), 2)
-        box3d_pts_2d, box3d_pts_3d = kitti_data_utils.compute_box_3d(obj, calib.P)
+        if obj.cls_type == 'DontCare': continue
+        cv2.rectangle(img, (int(obj.xmin),int(obj.ymin)),
+           (int(obj.xmax),int(obj.ymax)), (0,255,0), 2)
+        box3d_pts_2d, box3d_pts_3d = kitti_utils.compute_box_3d(obj, calib.P2)
         if box3d_pts_2d is not None:
-            img2 = kitti_data_utils.draw_projected_box3d(img2, box3d_pts_2d, cnf.colors[obj.cls_id])
+            img2 = draw_projected_box3d(img2, box3d_pts_2d, cnf.colors[obj.cls_id])
     if show3d:
         cv2.imshow("img", img2)
-    return img2
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        return img2
+    else:
+        cv2.imshow("img", img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        return img
 
 
-def show_lidar_with_boxes(pc_velo, objects, calib,
-                          img_fov=False, img_width=None, img_height=None, fig=None):
-    ''' Show all LiDAR points.
-        Draw 3d box in LiDAR point cloud (in velo coord system) '''
+def display_lidar(cloud):
+    
 
-    if not fig:
-        fig = mlab.figure(figure="KITTI_POINT_CLOUD", bgcolor=(0, 0, 0), fgcolor=None, engine=None, size=(1250, 550))
-
-    if img_fov:
-        pc_velo = get_lidar_in_image_fov(pc_velo, calib, 0, 0, img_width, img_height)
-
-    draw_lidar(pc_velo, fig1=fig)
-
-    for obj in objects:
-
-        if obj.type == 'DontCare': continue
-        # Draw 3d bounding box
-        box3d_pts_2d, box3d_pts_3d = kitti_data_utils.compute_box_3d(obj, calib.P)
-        box3d_pts_3d_velo = calib.project_rect_to_velo(box3d_pts_3d)
-
-        # Draw heading arrow
-        ori3d_pts_2d, ori3d_pts_3d = kitti_data_utils.compute_orientation_3d(obj, calib.P)
-        ori3d_pts_3d_velo = calib.project_rect_to_velo(ori3d_pts_3d)
-        x1, y1, z1 = ori3d_pts_3d_velo[0, :]
-        x2, y2, z2 = ori3d_pts_3d_velo[1, :]
-
-        draw_gt_boxes3d([box3d_pts_3d_velo], fig=fig, color=(0, 1, 1), line_width=2, draw_text=False)
-
-        mlab.plot3d([x1, x2], [y1, y2], [z1, z2], color=(0.5, 0.5, 0.5), tube_radius=None, line_width=1, figure=fig)
-
-    mlab.view(distance=90)
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(cloud)
+    o3d.visualization.draw_geometries([pcd])
 
 
-def invert_target(targets, calib, img_shape_2d, RGB_Map=None):
-    predictions = targets
-    predictions = kitti_bev_utils.inverse_yolo_target(predictions, cnf.boundary)
-    if predictions.shape[0]:
-        predictions[:, 1:] = transformation.lidar_to_camera_box(predictions[:, 1:], calib.V2C, calib.R0, calib.P)
+def draw_projected_box3d(image, qs, color=(255, 0, 255), thickness=2):
+    """ Draw 3d bounding box in image
+        qs: (8,3) array of vertices for the 3d box in following order:
+            1 -------- 0
+           /|         /|
+          2 -------- 3 .
+          | |        | |
+          . 5 -------- 4
+          |/         |/
+          6 -------- 7
+    """
+    qs = qs.astype(np.int32)
+    for k in range(0, 4):
+        # Ref: http://docs.enthought.com/mayavi/mayavi/auto/mlab_helper_functions.html
+        i, j = k, (k + 1) % 4
+        # use LINE_AA for opencv3
+        cv2.line(image, (qs[i, 0], qs[i, 1]), (qs[j, 0], qs[j, 1]), color, thickness)
 
-    objects_new = []
-    corners3d = []
-    for index, l in enumerate(predictions):
-        if l[0] == 0:
-            str = "Car"
-        elif l[0] == 1:
-            str = "Pedestrian"
-        elif l[0] == 2:
-            str = "Cyclist"
+        i, j = k + 4, (k + 1) % 4 + 4
+        cv2.line(image, (qs[i, 0], qs[i, 1]), (qs[j, 0], qs[j, 1]), color, thickness)
+
+        i, j = k, k + 4
+        cv2.line(image, (qs[i, 0], qs[i, 1]), (qs[j, 0], qs[j, 1]), color, thickness)
+    return image
+
+def show_lidar_with_boxes(cloud, corners):
+    if cloud.shape[1] > 3:
+        cloud = cloud[:, :3]
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(cloud)
+    lines = [
+        [0, 1],
+        [0, 2],
+        [0, 3],
+        [1, 6],
+        [1, 7],
+        [2, 5],
+        [2, 7],
+        [3, 5],
+        [3, 6],
+        [4, 5],
+        [4, 6],
+        [4, 7],
+    ]
+    colors = [[1, 0, 0] for i in range(len(lines))]
+    line_set = o3d.geometry.LineSet(
+        points=o3d.utility.Vector3dVector(corners),
+        lines=o3d.utility.Vector2iVector(lines),
+    )
+    line_set.colors = o3d.utility.Vector3dVector(colors)
+    o3d.visualization.draw_geometries([pcd, line_set])
+
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+colors = {
+    'Car': 'b',
+    'Tram': 'r',
+    'Cyclist': 'g',
+    'Van': 'c',
+    'Truck': 'm',
+    'Pedestrian': 'y',
+    'Sitter': 'k'
+}
+axes_limits = [
+    [-20, 80], # X axis range
+    [-20, 20], # Y axis range
+    [-3, 10]   # Z axis range
+]
+axes_str = ['X', 'Y', 'Z']
+
+def draw_box(pyplot_axis, vertices, axes=[0, 1, 2], color='black'):
+    """
+    Draws a bounding 3D box in a pyplot axis.
+    
+    Parameters
+    ----------
+    pyplot_axis : Pyplot axis to draw in.
+    vertices    : Array 8 box vertices containing x, y, z coordinates.
+    axes        : Axes to use. Defaults to `[0, 1, 2]`, e.g. x, y and z axes.
+    color       : Drawing color. Defaults to `black`.
+    """
+    vertices = vertices[axes, :]
+    connections = [
+        [0, 1], [1, 2], [2, 3], [3, 0],  # Lower plane parallel to Z=0 plane
+        [4, 5], [5, 6], [6, 7], [7, 4],  # Upper plane parallel to Z=0 plane
+        [0, 4], [1, 5], [2, 6], [3, 7]  # Connections between upper and lower planes
+    ]
+    for connection in connections:
+        pyplot_axis.plot(*vertices[:, connection], c=color, lw=0.5)
+
+def display_frame_statistics(dataset, tracklet_rects, tracklet_types, frame, points=0.2):
+    """
+    Displays statistics for a single frame. Draws camera data, 3D plot of the lidar point cloud data and point cloud
+    projections to various planes.
+    
+    Parameters
+    ----------
+    dataset         : `raw` dataset.
+    tracklet_rects  : Dictionary with tracklet bounding boxes coordinates.
+    tracklet_types  : Dictionary with tracklet types.
+    frame           : Absolute number of the frame.
+    points          : Fraction of lidar points to use. Defaults to `0.2`, e.g. 20%.
+    """
+    dataset_gray = list(dataset.gray)
+    dataset_rgb = list(dataset.rgb)
+    dataset_velo = list(dataset.velo)
+    
+    print('Frame timestamp: ' + str(dataset.timestamps[frame]))
+    # Draw camera data
+    f, ax = plt.subplots(2, 2, figsize=(15, 5))
+    ax[0, 0].imshow(dataset_gray[frame][0], cmap='gray')
+    ax[0, 0].set_title('Left Gray Image (cam0)')
+    ax[0, 1].imshow(dataset_gray[frame][1], cmap='gray')
+    ax[0, 1].set_title('Right Gray Image (cam1)')
+    ax[1, 0].imshow(dataset_rgb[frame][0])
+    ax[1, 0].set_title('Left RGB Image (cam2)')
+    ax[1, 1].imshow(dataset_rgb[frame][1])
+    ax[1, 1].set_title('Right RGB Image (cam3)')
+    plt.show()
+
+    points_step = int(1. / points)
+    point_size = 0.01 * (1. / points)
+    velo_range = range(0, dataset_velo[frame].shape[0], points_step)
+    velo_frame = dataset_velo[frame][velo_range, :]      
+    def draw_point_cloud(ax, title, axes=[0, 1, 2], xlim3d=None, ylim3d=None, zlim3d=None):
+        """
+        Convenient method for drawing various point cloud projections as a part of frame statistics.
+        """
+        ax.scatter(*np.transpose(velo_frame[:, axes]), s=point_size, c=velo_frame[:, 3], cmap='gray')
+        ax.set_title(title)
+        ax.set_xlabel('{} axis'.format(axes_str[axes[0]]))
+        ax.set_ylabel('{} axis'.format(axes_str[axes[1]]))
+        if len(axes) > 2:
+            ax.set_xlim3d(*axes_limits[axes[0]])
+            ax.set_ylim3d(*axes_limits[axes[1]])
+            ax.set_zlim3d(*axes_limits[axes[2]])
+            ax.set_zlabel('{} axis'.format(axes_str[axes[2]]))
         else:
-            str = "Ignore"
-        line = '%s -1 -1 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0' % str
-
-        obj = kitti_data_utils.Object3d(line)
-        obj.t = l[1:4]
-        obj.h, obj.w, obj.l = l[4:7]
-        obj.ry = np.arctan2(math.sin(l[7]), math.cos(l[7]))
-
-        _, corners_3d = kitti_data_utils.compute_box_3d(obj, calib.P)
-        corners3d.append(corners_3d)
-        objects_new.append(obj)
-
-    if len(corners3d) > 0:
-        corners3d = np.array(corners3d)
-        img_boxes, _ = calib.corners3d_to_img_boxes(corners3d)
-
-        img_boxes[:, 0] = np.clip(img_boxes[:, 0], 0, img_shape_2d[1] - 1)
-        img_boxes[:, 1] = np.clip(img_boxes[:, 1], 0, img_shape_2d[0] - 1)
-        img_boxes[:, 2] = np.clip(img_boxes[:, 2], 0, img_shape_2d[1] - 1)
-        img_boxes[:, 3] = np.clip(img_boxes[:, 3], 0, img_shape_2d[0] - 1)
-
-        img_boxes_w = img_boxes[:, 2] - img_boxes[:, 0]
-        img_boxes_h = img_boxes[:, 3] - img_boxes[:, 1]
-        box_valid_mask = np.logical_and(img_boxes_w < img_shape_2d[1] * 0.8, img_boxes_h < img_shape_2d[0] * 0.8)
-
-    for i, obj in enumerate(objects_new):
-        x, z, ry = obj.t[0], obj.t[2], obj.ry
-        beta = np.arctan2(z, x)
-        alpha = -np.sign(beta) * np.pi / 2 + beta + ry
-
-        obj.alpha = alpha
-        obj.box2d = img_boxes[i, :]
-
-    if RGB_Map is not None:
-        labels, noObjectLabels = kitti_bev_utils.read_labels_for_bevbox(objects_new)
-        if not noObjectLabels:
-            labels[:, 1:] = transformation.camera_to_lidar_box(labels[:, 1:], calib.V2C, calib.R0,
-                                                               calib.P)  # convert rect cam to velo cord
-
-        target = kitti_bev_utils.build_yolo_target(labels)
-        kitti_bev_utils.draw_box_in_bev(RGB_Map, target)
-
-    return objects_new
-
-
-def predictions_to_kitti_format(img_detections, calib, img_shape_2d, img_size, RGB_Map=None):
-    predictions = []
-    for detections in img_detections:
-        if detections is None:
-            continue
-        # Rescale boxes to original image
-        for x, y, w, l, im, re, *_, cls_pred in detections:
-            predictions.append([cls_pred, x / img_size, y / img_size, w / img_size, l / img_size, im, re])
-
-    predictions = kitti_bev_utils.inverse_yolo_target(np.array(predictions), cnf.boundary)
-    if predictions.shape[0]:
-        predictions[:, 1:] = transformation.lidar_to_camera_box(predictions[:, 1:], calib.V2C, calib.R0, calib.P)
-
-    objects_new = []
-    corners3d = []
-    for index, l in enumerate(predictions):
-        if l[0] == 0:
-            str = "Car"
-        elif l[0] == 1:
-            str = "Pedestrian"
-        elif l[0] == 2:
-            str = "Cyclist"
-        else:
-            str = "Ignore"
-        line = '%s -1 -1 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0' % str
-
-        obj = kitti_data_utils.Object3d(line)
-        obj.t = l[1:4]
-        obj.h, obj.w, obj.l = l[4:7]
-        obj.ry = np.arctan2(math.sin(l[7]), math.cos(l[7]))
-
-        _, corners_3d = kitti_data_utils.compute_box_3d(obj, calib.P)
-        corners3d.append(corners_3d)
-        objects_new.append(obj)
-
-    if len(corners3d) > 0:
-        corners3d = np.array(corners3d)
-        img_boxes, _ = calib.corners3d_to_img_boxes(corners3d)
-
-        img_boxes[:, 0] = np.clip(img_boxes[:, 0], 0, img_shape_2d[1] - 1)
-        img_boxes[:, 1] = np.clip(img_boxes[:, 1], 0, img_shape_2d[0] - 1)
-        img_boxes[:, 2] = np.clip(img_boxes[:, 2], 0, img_shape_2d[1] - 1)
-        img_boxes[:, 3] = np.clip(img_boxes[:, 3], 0, img_shape_2d[0] - 1)
-
-        img_boxes_w = img_boxes[:, 2] - img_boxes[:, 0]
-        img_boxes_h = img_boxes[:, 3] - img_boxes[:, 1]
-        box_valid_mask = np.logical_and(img_boxes_w < img_shape_2d[1] * 0.8, img_boxes_h < img_shape_2d[0] * 0.8)
-
-    for i, obj in enumerate(objects_new):
-        x, z, ry = obj.t[0], obj.t[2], obj.ry
-        beta = np.arctan2(z, x)
-        alpha = -np.sign(beta) * np.pi / 2 + beta + ry
-
-        obj.alpha = alpha
-        obj.box2d = img_boxes[i, :]
-
-    if RGB_Map is not None:
-        labels, noObjectLabels = kitti_bev_utils.read_labels_for_bevbox(objects_new)
-        if not noObjectLabels:
-            labels[:, 1:] = transformation.camera_to_lidar_box(labels[:, 1:], calib.V2C, calib.R0,
-                                                               calib.P)  # convert rect cam to velo cord
-
-        target = kitti_bev_utils.build_yolo_target(labels)
-        kitti_bev_utils.draw_box_in_bev(RGB_Map, target)
-
-    return objects_new
+            ax.set_xlim(*axes_limits[axes[0]])
+            ax.set_ylim(*axes_limits[axes[1]])
+        # User specified limits
+        if xlim3d!=None:
+            ax.set_xlim3d(xlim3d)
+        if ylim3d!=None:
+            ax.set_ylim3d(ylim3d)
+        if zlim3d!=None:
+            ax.set_zlim3d(zlim3d)
+            
+        for t_rects, t_type in zip(tracklet_rects[frame], tracklet_types[frame]):
+            draw_box(ax, t_rects, axes=axes, color=colors[t_type])
+            
+    # Draw point cloud data as 3D plot
+    f2 = plt.figure(figsize=(15, 8))
+    ax2 = f2.add_subplot(111, projection='3d')                    
+    draw_point_cloud(ax2, 'Velodyne scan', xlim3d=(-10,30))
+    plt.show()
+    
+    # Draw point cloud data as plane projections
+    f, ax3 = plt.subplots(3, 1, figsize=(15, 25))
+    draw_point_cloud(
+        ax3[0], 
+        'Velodyne scan, XZ projection (Y = 0), the car is moving in direction left to right', 
+        axes=[0, 2] # X and Z axes
+    )
+    draw_point_cloud(
+        ax3[1], 
+        'Velodyne scan, XY projection (Z = 0), the car is moving in direction left to right', 
+        axes=[0, 1] # X and Y axes
+    )
+    draw_point_cloud(
+        ax3[2], 
+        'Velodyne scan, YZ projection (X = 0), the car is moving towards the graph plane', 
+        axes=[1, 2] # Y and Z axes
+    )
+    plt.show()

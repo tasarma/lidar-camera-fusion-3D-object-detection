@@ -1,10 +1,10 @@
 import os
 import sys
 import numpy as np
-from typing import List
+from typing import List, Tuple
 
-import _init_path
-from config.kitti_config import R0_inv, Tr_velo_to_cam_inv
+import DataProcess.init_path as init_path
+from Config.kitti_config import R0_inv, Tr_velo_to_cam_inv
 
 
 def inverse_rigid_trans(Tr: List[float]) -> np.ndarray:
@@ -18,7 +18,7 @@ def inverse_rigid_trans(Tr: List[float]) -> np.ndarray:
 
 
 def camera_to_lidar(x: float, y: float, z: float, 
-                    V2C=None, R0=None, P2=None) -> tuple[np.ndarray]:
+                    V2C=None, R0=None, P2=None) -> Tuple[np.ndarray]:
     p = np.array([x, y, z, 1])
     if V2C is None or R0 is None:
         p = np.matmul(R0_inv, p) # config. BURAYI DUZELT
@@ -46,3 +46,15 @@ def camera_to_lidar_box(boxes: np.ndarray,
     return np.array(ret).reshape(-1, 7)
 
 
+def project_to_image(pts_3d, P):
+    """ Project 3d points to image plane.
+      input: pts_3d: nx3 matrix
+             P:      3x4 projection matrix
+      output: pts_2d: nx2 matrix
+    """
+    n = pts_3d.shape[0]
+    pts_3d_extend = np.hstack((pts_3d, np.ones((n, 1))))
+    pts_2d = np.dot(pts_3d_extend, np.transpose(P))  # nx3
+    pts_2d[:, 0] /= pts_2d[:, 2]
+    pts_2d[:, 1] /= pts_2d[:, 2]
+    return pts_2d[:, 0:2]

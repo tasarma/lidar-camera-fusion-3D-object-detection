@@ -7,6 +7,8 @@ CLASS_NAME_TO_ID = {
         'Van': 3
 }
 
+colors = [[0, 255, 255], [0, 0, 255], [255, 0, 0]]
+
 # Following parameters are calculated as an average from KITTI dataset for simplicity
 #####################################################################################
 Tr_velo_to_cam = np.array([

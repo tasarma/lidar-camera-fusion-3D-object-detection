@@ -6,7 +6,6 @@ https://github.com/yanx27/Pointnet_Pointnet2_pytorch/blob/master/models/pointnet
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ..build import MODELS
 import numpy as np
 
 
@@ -87,11 +86,7 @@ class STNkd(nn.Module):
 
 
 class PointNetEncoder(nn.Module):
-    """Encoder for PointNet
-
-    Args:
-        nn (_type_): _description_
-    """
+    """Encoder for PointNet"""
 
     def __init__(self,
                  in_channels: int,
@@ -100,8 +95,7 @@ class PointNetEncoder(nn.Module):
                  is_seg: bool=False,  
                  **kwargs
                  ):
-        """_summary_
-
+        """
         Args:
             in_channels (int): feature size of input 
             input_transform (bool, optional): whether to use transformation for coordinates. Defaults to True.
@@ -116,11 +110,13 @@ class PointNetEncoder(nn.Module):
         self.conv1 = torch.nn.Conv1d(64, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
         self.conv3 = torch.nn.Conv1d(128, 1024, 1)
+
         self.bn0_1 = nn.BatchNorm1d(64)
         self.bn0_2 = nn.BatchNorm1d(64)
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(128)
         self.bn3 = nn.BatchNorm1d(1024)
+        
         self.fstn = STNkd(k=64) if feature_transform else None
         self.out_channels = 1024 + 64 if is_seg else 1024 
          
@@ -153,10 +149,13 @@ class PointNetEncoder(nn.Module):
             trans_feat = None
 
         x = F.relu(self.bn1(self.conv1(x)))
+
         point_feat = x
         point_feat = point_feat.permute(0, 2, 1)
+        
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.bn3(self.conv3(x))
         x = torch.max(x, 2, keepdim=True)[0]
+
         x = x.view(-1, 1024) # global features
         return point_feat, x
