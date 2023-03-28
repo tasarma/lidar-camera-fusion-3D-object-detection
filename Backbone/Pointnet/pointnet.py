@@ -1,8 +1,3 @@
-"""PointNet
-Reference:
-https://github.com/yanx27/Pointnet_Pointnet2_pytorch/blob/master/models/pointnet_utils.py
-
-"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -92,6 +87,7 @@ class PointNetEncoder(nn.Module):
                  in_channels: int,
                  input_transform: bool=True,
                  feature_transform: bool=True,
+                 global_feature: bool=True,
                  is_seg: bool=False,  
                  **kwargs
                  ):
@@ -119,6 +115,8 @@ class PointNetEncoder(nn.Module):
         
         self.fstn = STNkd(k=64) if feature_transform else None
         self.out_channels = 1024 + 64 if is_seg else 1024 
+
+        self.global_feat = global_feature
          
     def forward(self, pos, x=None):
         if hasattr(pos, 'keys'):
@@ -151,11 +149,19 @@ class PointNetEncoder(nn.Module):
         x = F.relu(self.bn1(self.conv1(x)))
 
         point_feat = x
-        point_feat = point_feat.permute(0, 2, 1)
+        point_feat = point_feat.view(-1, 400, 64)
         
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.bn3(self.conv3(x))
         x = torch.max(x, 2, keepdim=True)[0]
 
-        x = x.view(-1, 1024) # global features
-        return point_feat, x
+        x = x.view(-1, 1, 1024) # global features
+        
+        if self.global_feat:
+            return x, point_feat, trans_feat
+        else:
+            x = x.view(-1, 1024, 1).repeat(1, 1, N)
+            return point_feat.view(-1,64), trans_feat
+
+
+
