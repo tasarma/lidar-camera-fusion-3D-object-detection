@@ -1,3 +1,5 @@
+import cv2
+import torch
 import open3d
 import numpy as np
 
@@ -29,18 +31,22 @@ def get_corner_offsets(corners: np.ndarray, cloud: np.ndarray) -> np.ndarray:
 
 # data.__getitem__(6)
 
-points, corners = data.__getitem__(1)
+# points, corners = data.__getitem__(3)
 
-pts = np.squeeze(points)
-pts = pts.astype(np.float64)
-crs = np.squeeze(corners)
-crs = crs.astype(np.float64)
+# pts = np.squeeze(points)
+# pts = pts.astype(np.float64)
+# crs = np.squeeze(corners)
+# crs = crs.astype(np.float64)
 # of = get_corner_offsets(crs, pts)
 
-vis.show_lidar_with_boxes(pts, crs)
+# vis.show_lidar_with_boxes(pts, crs)
 
 
 
+from Backbone.Yolov5.yolov5 import YOLOv5
+model = YOLOv5()
 
+img = data.get_image(3)
 
-
+feat = model(img[..., ::-1])  # OpenCV image (BGR to RGB)
+print(feat.shape)

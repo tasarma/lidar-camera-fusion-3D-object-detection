@@ -84,7 +84,7 @@ class PointNetEncoder(nn.Module):
     """Encoder for PointNet"""
 
     def __init__(self,
-                 in_channels: int,
+                 in_channels: int=3,
                  input_transform: bool=True,
                  feature_transform: bool=True,
                  global_feature: bool=True,
@@ -93,9 +93,10 @@ class PointNetEncoder(nn.Module):
                  ):
         """
         Args:
-            in_channels (int): feature size of input 
+            in_channels (int): feature size of input. Defaults to 3
             input_transform (bool, optional): whether to use transformation for coordinates. Defaults to True.
             feature_transform (bool, optional): whether to use transformation for features. Defaults to True.
+            global_feature (bool, optional): whether to use global for features. Defaults to True.
             is_seg (bool, optional): for segmentation or classification. Defaults to False.
         """
         super().__init__()
@@ -158,7 +159,7 @@ class PointNetEncoder(nn.Module):
         x = x.view(-1, 1, 1024) # global features
         
         if self.global_feat:
-            return x, point_feat, trans_feat
+            return x, point_feat
         else:
             x = x.view(-1, 1024, 1).repeat(1, 1, N)
             return point_feat.view(-1,64), trans_feat

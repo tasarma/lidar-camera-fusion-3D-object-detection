@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Yolov5 extensions
+*.pt
+
 # Distribution / packaging
 .Python
 build/
