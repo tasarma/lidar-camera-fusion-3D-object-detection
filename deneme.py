@@ -29,7 +29,7 @@ def get_corner_offsets(corners: np.ndarray, cloud: np.ndarray) -> np.ndarray:
     corner_offsets = cloud.reshape(cnt, 1, 3) - corners
     return corner_offsets # (cnt, 8, 3)
 
-# data.__getitem__(6)
+sample, img, obj_list, calib = data.__getitem__(6)
 
 # points, corners = data.__getitem__(3)
 
@@ -40,13 +40,5 @@ def get_corner_offsets(corners: np.ndarray, cloud: np.ndarray) -> np.ndarray:
 # of = get_corner_offsets(crs, pts)
 
 # vis.show_lidar_with_boxes(pts, crs)
-
-
-
-from Backbone.Yolov5.yolov5 import YOLOv5
-model = YOLOv5()
-
-img = data.get_image(3)
-
-feat = model(img[..., ::-1])  # OpenCV image (BGR to RGB)
-print(feat.shape)
+# vis.show_image_with_boxes(img, obj_list, calib, .False)
+vis.show_lidar_with_boxes(sample['points'],obj_list, calib)

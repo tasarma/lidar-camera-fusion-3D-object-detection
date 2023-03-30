@@ -26,7 +26,6 @@ class KittiDataset(Dataset):
         self.mode = mode
         self.npoints = 16384
         self.classes = ['Car']
-        self.use_intensity = False
         is_test = self.mode == 'test'
         self.data_dir = root
         sub_folder = 'testing' if is_test else 'training'
@@ -78,73 +77,49 @@ class KittiDataset(Dataset):
         padded_matrix[:n] = matrix
         return padded_matrix
 
-    def __getitem__(self, index: int) -> Tuple[np.ndarray]:
-        """Get the item at the specified index in the dataset"""
+    # def __getitem__(self, index: int) -> Tuple[np.ndarray]:
+    #     """Get the item at the specified index in the dataset"""
+    #     sample_id = int(self.sample_id_list[index])
+    #     calib = self.get_calib(sample_id)
+    #     img = self.get_image(sample_id)
+    #     pts_lidar= self.get_lidar(sample_id)
+
+    #     obj_list = self.filtrate_objects(self.get_label(sample_id))
+    #     box3d_list = kitti_utils.get_boxes3d(obj_list)
+    #     corners_3d = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
+        
+    #     # vis.show_image_with_boxes(img, obj_list, calib, True)
+    #     return pts_lidar, corners_3d
+    
+    # """
+    def __getitem__(self, index: int):
+        ''' Get the item at the specified index in the dataset'''
         sample_id = int(self.sample_id_list[index])
         calib = self.get_calib(sample_id)
         img = self.get_image(sample_id)
         pts_lidar= self.get_lidar(sample_id)
 
-        obj_list = self.filtrate_objects(self.get_label(sample_id))
-        box3d_list = kitti_utils.get_boxes3d(obj_list)
-        corners_3d = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
-        
-        # vis.show_image_with_boxes(img, obj_list, calib, True)
-        return pts_lidar, corners_3d
-    
-    """def __getitem__(self, index: int):
-        ''' Get the item at the specified index in the dataset'''
-        sample_id = int(self.sample_id_list[index])
-        calib = self.get_calib(sample_id)
-        img_shape = (self.get_image(sample_id)).shape
-        pts_lidar= self.get_lidar(sample_id)
-
-        pts_3d_rect, pts_img, pts_rect_depth = calib.project_velo_to_image(pts_lidar[:, 0:3])
-        pts_intensity = pts_lidar[:, 3]
+        pts_3d_rect, pts_img, pts_rect_depth = calib.project_velo_to_image(pts_lidar[:, :3])
         
         # Get valid points (projected points should be in image)
-        pts_valid_flag = self.get_valid_flag(pts_img, pts_rect_depth, img_shape)
-        
-        pts_3d_rect = pts_3d_rect[pts_valid_flag][:, 0:3]
-        pts_intensity = pts_intensity[pts_valid_flag]
+        pts_valid_flag = self.get_valid_flag(pts_img, pts_rect_depth, img.shape)
+        pts_3d_rect = pts_3d_rect[pts_valid_flag][:, :3]
 
         choice = self.__seperate_points__(pts_3d_rect)
         ret_pts = pts_3d_rect[choice, :]
-        ret_pts_intensity = pts_intensity[choice] - 0.5 # translate intensity to [-0.5, 0.5]
-
-        pts_features = [ret_pts_intensity.reshape(-1, 1)]
-        if pts_features.__len__() > 1:
-            ret_pts_features = np.concatenate(pts_features, axis=1)
-        else:
-            ret_pts_features = pts_features[0]
 
         sample_info = {'sample_id': sample_id}
 
-        if self.mode == 'test':
-            if self.use_intensity:
-                pts_input = np.concatenate((ret_pts, ret_pts_features), axis=1) # (n, c)
-            else:
-                pts_input = ret_pts
-
-            sample_info['pts_input'] = pts_input
-            sample_info['pts_rect'] = ret_pts
-            sample_info['pts_features'] = ret_pts_features
-            return sample_info
-
         obj_list = self.filtrate_objects(self.get_label(sample_id))
         box3d_list = kitti_utils.get_boxes3d(obj_list)
+        corners_3d = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
 
         # Prepare input
-        if self.use_intensity:
-            pts_input = np.concatenate((ret_pts, ret_pts_features), axis=1) # (n, c)
-        else:
-            pts_input = ret_pts
-
-        sample_info['pts_input'] = pts_input
-        sample_info['pts_rect'] = ret_pts
+        sample_info['points'] = ret_pts
+        sample_info['corners_3d'] = corners_3d
         
-        return sample_info
-    """
+        return sample_info, img, obj_list, calib
+     
 
     def filtrate_objects(self, obj_list: np.ndarray) -> list:
         type_whitelist = self.classes

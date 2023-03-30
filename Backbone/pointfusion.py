@@ -22,7 +22,6 @@ class Fusion(nn.Module):
 
     def forward(self, img, pts):
         batch_size = img.size()[0]
-        # N= pts.size()[2]
         B, D, N = pts.size() # Batch size, feature dimension, number of points
 
         base_feat = self.yolov5(img).view(batch_size, 1, 2048)
