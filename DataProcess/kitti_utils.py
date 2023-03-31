@@ -108,6 +108,7 @@ class Calibration:
 
         # Rigid transform from Velodyne coord to reference camera coord
         self.V2C = calibs['Tr_velo_to_cam']
+        self.C2V = transformation.inverse_rigid_trans(self.V2C)
 
         # Rotation from reference camera coord to rect camera coord
         self.R0 = calibs['R0']
@@ -140,11 +141,23 @@ class Calibration:
     def project_velo_to_ref(self, pts_3d_velo: np.ndarray) -> np.ndarray:
         pts_3d_velo = self.cart_to_hom(pts_3d_velo)  # nx4
         return np.dot(pts_3d_velo, np.transpose(self.V2C))
-  
+    
+    def project_ref_to_velo(self, pts_3d_ref):
+        pts_3d_ref = self.cart_to_hom(pts_3d_ref)  # nx4
+        return np.dot(pts_3d_ref, np.transpose(self.C2V))
+
     def project_rect_to_ref(self, pts_3d_rect: np.ndarray) -> np.ndarray:
         """Input and Output are nx3 points """
         return np.transpose(np.dot(np.linalg.inv(self.R0), 
                                    np.transpose(pts_3d_rect)))
+    
+    def project_rect_to_velo(self, pts_3d_rect):
+        ''' Input: nx3 points in rect camera coord.
+            Output: nx3 points in velodyne coord.
+        '''
+        pts_3d_ref = self.project_rect_to_ref(pts_3d_rect)
+        return self.project_ref_to_velo(pts_3d_ref)
+  
 
     def project_ref_to_rect(self, pts_3d_ref: np.ndarray) -> np.ndarray:
         """ Input and Output are nx3 points """

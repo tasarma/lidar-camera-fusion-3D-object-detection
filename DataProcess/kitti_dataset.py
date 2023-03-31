@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 import DataProcess.init_path as init_path
 import DataProcess.kitti_utils as kitti_utils
 from DataProcess.transformation import camera_to_lidar_box
-from DataProcess.kitti_utils import Object3D
+from DataProcess.kitti_utils import Object3D, Calibration as Calib
 from Config.kitti_config import CLASS_NAME_TO_ID
 from Utils import visualization as vis
 
@@ -77,21 +77,6 @@ class KittiDataset(Dataset):
         padded_matrix[:n] = matrix
         return padded_matrix
 
-    # def __getitem__(self, index: int) -> Tuple[np.ndarray]:
-    #     """Get the item at the specified index in the dataset"""
-    #     sample_id = int(self.sample_id_list[index])
-    #     calib = self.get_calib(sample_id)
-    #     img = self.get_image(sample_id)
-    #     pts_lidar= self.get_lidar(sample_id)
-
-    #     obj_list = self.filtrate_objects(self.get_label(sample_id))
-    #     box3d_list = kitti_utils.get_boxes3d(obj_list)
-    #     corners_3d = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
-        
-    #     # vis.show_image_with_boxes(img, obj_list, calib, True)
-    #     return pts_lidar, corners_3d
-    
-    # """
     def __getitem__(self, index: int):
         ''' Get the item at the specified index in the dataset'''
         sample_id = int(self.sample_id_list[index])
@@ -99,14 +84,19 @@ class KittiDataset(Dataset):
         img = self.get_image(sample_id)
         pts_lidar= self.get_lidar(sample_id)
 
-        pts_3d_rect, pts_img, pts_rect_depth = calib.project_velo_to_image(pts_lidar[:, :3])
-        
-        # Get valid points (projected points should be in image)
-        pts_valid_flag = self.get_valid_flag(pts_img, pts_rect_depth, img.shape)
-        pts_3d_rect = pts_3d_rect[pts_valid_flag][:, :3]
+        # pts_3d_rect, pts_img, pts_rect_depth = calib.project_velo_to_image(pts_lidar[:, :3])
+        # pts_intensity = pts_lidar[:, 3]
 
-        choice = self.__seperate_points__(pts_3d_rect)
-        ret_pts = pts_3d_rect[choice, :]
+        ret_pts = self.get_lidar_in_image_fov(pts_lidar[:, :3], calib, 0, 0, img.shape[1], img.shape[0])
+
+        # Get valid points (projected points should be in image)
+        # pts_valid_flag = self.get_valid_flag(pts_img, pts_rect_depth, img.shape)
+        # pts_3d_rect = pts_3d_rect[pts_valid_flag][:, :3]
+        # pts_intensity = pts_intensity[pts_valid_flag]
+
+        # choice = self.__seperate_points__(pts_3d_rect)
+        # ret_pts = pts_3d_rect[choice, :]
+        # pts_intensity = pts_intensity[choice] - 0.5  # translate intensity to [-0.5, 0.5]
 
         sample_info = {'sample_id': sample_id}
 
@@ -115,10 +105,11 @@ class KittiDataset(Dataset):
         corners_3d = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
 
         # Prepare input
-        sample_info['points'] = ret_pts
+        sample_info['pts'] = ret_pts
+        sample_info['pts_intensity'] = ret_pts
         sample_info['corners_3d'] = corners_3d
         
-        return sample_info, img, obj_list, calib
+        return sample_info, img, obj_list, calib, pts_lidar
      
 
     def filtrate_objects(self, obj_list: np.ndarray) -> list:
@@ -199,3 +190,18 @@ class KittiDataset(Dataset):
                 sample_id_list.append(sample_id)
 
         return sample_id_list
+
+    def get_lidar_in_image_fov(self, pc_velo, calib: Calib, xmin, ymin, xmax, ymax,
+                           clip_distance=0.0):
+        ''' Filter lidar points, keep those in image FOV '''
+        pts_3d_rect, pts_2d, _ = calib.project_velo_to_image(pc_velo)
+
+        x_in_fov = np.logical_and(pts_2d[:, 0] < xmax, pts_2d[:, 0] >= xmin)
+        y_in_fov = np.logical_and(pts_2d[:, 1] < ymax, pts_2d[:, 1] >= ymin)
+        in_fov = np.logical_and(x_in_fov, y_in_fov)
+
+        clip_mask = pc_velo[:, 0] > clip_distance
+        fov_inds = np.logical_and(in_fov, clip_mask)
+        imgfov_pc_velo = pc_velo[fov_inds, :]
+        
+        return imgfov_pc_velo

@@ -29,7 +29,7 @@ def get_corner_offsets(corners: np.ndarray, cloud: np.ndarray) -> np.ndarray:
     corner_offsets = cloud.reshape(cnt, 1, 3) - corners
     return corner_offsets # (cnt, 8, 3)
 
-sample, img, obj_list, calib = data.__getitem__(6)
+sample, img, obj_list, calib, lidar = data.__getitem__(6)
 
 # points, corners = data.__getitem__(3)
 
@@ -41,4 +41,10 @@ sample, img, obj_list, calib = data.__getitem__(6)
 
 # vis.show_lidar_with_boxes(pts, crs)
 # vis.show_image_with_boxes(img, obj_list, calib, .False)
-vis.show_lidar_with_boxes(sample['points'],obj_list, calib)
+# vis.show_lidar_with_boxes(sample['points'],obj_list, calib)
+
+pts = np.concatenate((sample['pts'],sample['pts_intensity']), axis=1)
+
+vis.show_lidar_with_boxes(sample['pts'], obj_list, calib)
+
+# bos.nee(root)
