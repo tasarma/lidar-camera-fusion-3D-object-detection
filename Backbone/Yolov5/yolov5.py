@@ -5,7 +5,7 @@ import numpy as np
 class YoloV5(torch.nn.Module):
     def __init__(self):
         super(YoloV5, self).__init__()
-        self.model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+        self.model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
         self.features = torch.nn.Sequential(*list(self.model.children())[:-1])
     
     def process_image(self, img: np.ndarray) -> np.ndarray:

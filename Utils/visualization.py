@@ -119,9 +119,9 @@ def show_lidar_with_boxes(lidar, labels, calib):
             continue
 
         box3d_pts_2d, box3d_pts_3d = kitti_utils.compute_box_3d(obj, calib.P2)
-        box3d_pts_3d_velo = calib.project_rect_to_velo(box3d_pts_3d)
-        corners_3d = box3d_pts_3d_velo
-        draw_gt_boxes3d([box3d_pts_3d_velo], fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
+        corners_3d_in_velo = calib.project_rect_to_velo(box3d_pts_3d)
+        print(corners_3d_in_velo)
+        draw_gt_boxes3d([corners_3d_in_velo], fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
 
     mlab.view(azimuth=230, distance=50)
     # mlab.savefig(filename='examples/kitti_3dbox_to_cloud.png')

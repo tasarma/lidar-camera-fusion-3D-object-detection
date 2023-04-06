@@ -84,32 +84,45 @@ class KittiDataset(Dataset):
         img = self.get_image(sample_id)
         pts_lidar= self.get_lidar(sample_id)
 
-        # pts_3d_rect, pts_img, pts_rect_depth = calib.project_velo_to_image(pts_lidar[:, :3])
         # pts_intensity = pts_lidar[:, 3]
 
-        ret_pts = self.get_lidar_in_image_fov(pts_lidar[:, :3], calib, 0, 0, img.shape[1], img.shape[0])
-
         # Get valid points (projected points should be in image)
-        # pts_valid_flag = self.get_valid_flag(pts_img, pts_rect_depth, img.shape)
-        # pts_3d_rect = pts_3d_rect[pts_valid_flag][:, :3]
-        # pts_intensity = pts_intensity[pts_valid_flag]
-
-        # choice = self.__seperate_points__(pts_3d_rect)
-        # ret_pts = pts_3d_rect[choice, :]
-        # pts_intensity = pts_intensity[choice] - 0.5  # translate intensity to [-0.5, 0.5]
+        ret_pts = self.get_lidar_in_image_fov(pts_lidar[:, :3], calib, 0, 0, img.shape[1], img.shape[0])
 
         sample_info = {'sample_id': sample_id}
 
         obj_list = self.filtrate_objects(self.get_label(sample_id))
+        # from PIL import Image
+        # for i, obj in enumerate(obj_list):
+        #     roi_img = kitti_utils.crop_image(img, obj)
+
+        #     # Transform the bbox coord. to lidar coord
+        #     points = calib.project_rect_to_velo(ret_pts)
+        #     roi_pc = kitti_utils.crop_lidar(points, obj, calib)
+            
+        #     # cv2.imwrite(f'img_{i}.jpg', roi, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        #     # im = Image.fromarray(roi)
+        #     # im.show()
+        return pts_lidar, obj_list, calib
+
         box3d_list = kitti_utils.get_boxes3d(obj_list)
         corners_3d = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
 
+        # Crop the image
+        # for obj in obj_list:
+        corners_2d, _ = kitti_utils.compute_box_3d(obj_list[0], calib.P2)
+        return img, obj_list[0].box2d            
+
+
+         
+
         # Prepare input
         sample_info['pts'] = ret_pts
-        sample_info['pts_intensity'] = ret_pts
+        sample_info['img'] = img
+        # sample_info['pts_intensity'] = ret_pts
         sample_info['corners_3d'] = corners_3d
         
-        return sample_info, img, obj_list, calib, pts_lidar
+        return sample_info #, img, obj_list, calib, pts_lidar
      
 
     def filtrate_objects(self, obj_list: np.ndarray) -> list:
@@ -205,3 +218,4 @@ class KittiDataset(Dataset):
         imgfov_pc_velo = pc_velo[fov_inds, :]
         
         return imgfov_pc_velo
+

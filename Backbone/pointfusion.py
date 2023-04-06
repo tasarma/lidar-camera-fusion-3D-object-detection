@@ -1,11 +1,13 @@
+import sys
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 import torchvision.transforms
 
-from Pointnet.pointnet import PointNetEncoder
-from Yolov5.yolov5 import YoloV5
+from .Pointnet.pointnet import PointNetEncoder
+from .Yolov5.yolov5 import YoloV5
 
 
 class Fusion(nn.Module):

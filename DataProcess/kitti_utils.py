@@ -3,6 +3,7 @@ from typing import List, Dict, Tuple
 import cv2
 import scipy
 import numpy as np
+from PIL import Image
 from scipy.spatial import Delaunay
 
 from . import transformation
@@ -356,3 +357,32 @@ def compute_box_3d(obj, P):
     corners_2d = transformation.project_to_image(np.transpose(corners_3d), P)
 
     return corners_2d, np.transpose(corners_3d)
+
+def crop_image(img: np.ndarray, obj: Object3D, width: int=640) -> np.ndarray:
+    l, t, r, b = obj.box2d.astype(int)
+    x = 0
+    roi = img[t+x:b+x, l+x:r+x]
+    roi = cv2.resize(roi, (width, width), interpolation=cv2.INTER_AREA)
+
+    return roi
+
+def crop_lidar(points: np.ndarray, obj: Object3D, calib: Calibration) -> np.ndarray:
+    """ Extract the points inside the bbox"""
+    box3d_pts_2d, box3d_pts_3d = compute_box_3d(obj, calib.P2)
+    box3d_pts_velo = calib.project_rect_to_velo(box3d_pts_3d)
+
+    mask = np.logical_and.reduce((
+        points[:, 0] >= box3d_pts_velo[:, 0].min(), points[:, 0] <= box3d_pts_velo[:, 0].max(),
+        points[:, 1] >= box3d_pts_velo[:, 1].min(), points[:, 1] <= box3d_pts_velo[:, 1].max(),
+        points[:, 2] >= box3d_pts_velo[:, 2].min(), points[:, 2] <= box3d_pts_velo[:, 2].max()
+        ))
+    
+    cropped_pts = points[mask]
+    print(mask.shape, mask)
+    print(cropped_pts.shape, cropped_pts)
+
+    return box3d_pts_velo
+
+
+
+

@@ -2,6 +2,7 @@ import cv2
 import torch
 import open3d
 import numpy as np
+from PIL import Image
 
 from DataProcess.kitti_dataset import KittiDataset
 from Utils import visualization as vis
@@ -29,22 +30,12 @@ def get_corner_offsets(corners: np.ndarray, cloud: np.ndarray) -> np.ndarray:
     corner_offsets = cloud.reshape(cnt, 1, 3) - corners
     return corner_offsets # (cnt, 8, 3)
 
-sample, img, obj_list, calib, lidar = data.__getitem__(6)
+points, corners, calib = data.__getitem__(6)
 
-# points, corners = data.__getitem__(3)
+def simg(img):
+    cv2.imshow('img', img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
-# pts = np.squeeze(points)
-# pts = pts.astype(np.float64)
-# crs = np.squeeze(corners)
-# crs = crs.astype(np.float64)
-# of = get_corner_offsets(crs, pts)
+vis.show_lidar_with_boxes(points, corners, calib)
 
-# vis.show_lidar_with_boxes(pts, crs)
-# vis.show_image_with_boxes(img, obj_list, calib, .False)
-# vis.show_lidar_with_boxes(sample['points'],obj_list, calib)
-
-pts = np.concatenate((sample['pts'],sample['pts_intensity']), axis=1)
-
-vis.show_lidar_with_boxes(sample['pts'], obj_list, calib)
-
-# bos.nee(root)
