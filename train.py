@@ -46,5 +46,5 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=
 
 for epoch in range(num_epochs):
     for batch_idx, (img, cloud, target) in enumerate(train_loader):
-        print(img, cloud, target)
+        print(img.shape, cloud.shape, target)
         break

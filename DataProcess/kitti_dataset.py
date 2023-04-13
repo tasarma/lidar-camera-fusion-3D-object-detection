@@ -24,7 +24,7 @@ class KittiDataset(Dataset):
             ):
         assert mode in ['train', 'test'] , f'Invalid Mode: {mode}'
         self.mode = mode
-        self.npoints = 16384
+        self.npoints = 100
         self.classes = ['Car']
         is_test = self.mode == 'test'
         self.data_dir = root
@@ -84,46 +84,28 @@ class KittiDataset(Dataset):
         img = self.get_image(sample_id)
         pts_lidar= self.get_lidar(sample_id)
 
-        # pts_intensity = pts_lidar[:, 3]
-
         # Get valid points (projected points should be in image)
         ret_pts = self.get_lidar_in_image_fov(pts_lidar[:, :3], calib, 0, 0, img.shape[1], img.shape[0])
 
         sample_info = {'sample_id': sample_id}
 
         obj_list = self.filtrate_objects(self.get_label(sample_id))
-        # from PIL import Image
-        # for i, obj in enumerate(obj_list):
-        #     roi_img = kitti_utils.crop_image(img, obj)
 
-        #     # Transform the bbox coord. to lidar coord
-        #     points = calib.project_rect_to_velo(ret_pts)
-        #     roi_pc = kitti_utils.crop_lidar(points, obj, calib)
-            
-        #     # cv2.imwrite(f'img_{i}.jpg', roi, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        #     # im = Image.fromarray(roi)
-        #     # im.show()
-        return pts_lidar, obj_list, calib
-
-        box3d_list = kitti_utils.get_boxes3d(obj_list)
-        corners_3d = kitti_utils.box3d_to_corner3d(box3d_list, rotate=True)
-
-        # Crop the image
-        # for obj in obj_list:
-        corners_2d, _ = kitti_utils.compute_box_3d(obj_list[0], calib.P2)
-        return img, obj_list[0].box2d            
-
-
-         
-
-        # Prepare input
-        sample_info['pts'] = ret_pts
-        sample_info['img'] = img
-        # sample_info['pts_intensity'] = ret_pts
-        sample_info['corners_3d'] = corners_3d
+        if len(obj_list) <= 0:
+            return None, None, None
         
-        return sample_info #, img, obj_list, calib, pts_lidar
-     
+        for i, obj in enumerate(obj_list):
+            roi_img = kitti_utils.crop_image(img, obj)
+
+            roi_pc = kitti_utils.crop_lidar(ret_pts, obj, calib)
+
+            # Apply a mask to select points in point cloud
+            mask = self.__seperate_points__(roi_pc)
+            roi_pc = roi_pc[mask, :]
+            break
+
+        return roi_img, roi_pc, obj_list
+
 
     def filtrate_objects(self, obj_list: np.ndarray) -> list:
         type_whitelist = self.classes
@@ -159,9 +141,14 @@ class KittiDataset(Dataset):
 
         else:
             # To complete pts_3d_rect to self.npoints, add more points
-            choice = np.arange(0, len(pts_3d_rect), dtype=np.int32)
-            if self.npoints > len(pts_3d_rect):
-                extra_choice = np.random.choice(choice, self.npoints - len(pts_3d_rect), replace=False)
+            len_pts = len(pts_3d_rect)
+            choice = np.arange(0, len_pts, dtype=np.int32)
+            if self.npoints > len_pts:
+                if len(choice) > (self.npoints - len_pts):
+                    extra_choice = np.random.choice(choice, self.npoints - len_pts, replace=False)
+                    choice = np.concatenate((choice, extra_choice), axis=0)
+
+                extra_choice = np.random.choice(choice, len_pts, replace=False)
                 choice = np.concatenate((choice, extra_choice), axis=0)
         
         np.random.shuffle(choice)

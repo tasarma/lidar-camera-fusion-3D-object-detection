@@ -360,8 +360,8 @@ def compute_box_3d(obj, P):
 
 def crop_image(img: np.ndarray, obj: Object3D, width: int=640) -> np.ndarray:
     l, t, r, b = obj.box2d.astype(int)
-    x = 0
-    roi = img[t+x:b+x, l+x:r+x]
+    scale_box = 0
+    roi = img[t+scale_box:b+scale_box, l+scale_box:r+scale_box]
     roi = cv2.resize(roi, (width, width), interpolation=cv2.INTER_AREA)
 
     return roi
@@ -378,10 +378,10 @@ def crop_lidar(points: np.ndarray, obj: Object3D, calib: Calibration) -> np.ndar
         ))
     
     cropped_pts = points[mask]
-    print(mask.shape, mask)
-    print(cropped_pts.shape, cropped_pts)
+    print('mask  ', mask.shape)
+    print('cropped  ',cropped_pts.shape)
 
-    return box3d_pts_velo
+    return cropped_pts
 
 
 
