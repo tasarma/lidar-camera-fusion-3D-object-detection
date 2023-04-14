@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import List, Tuple
+from PIL.Image import new
 
 import cv2
 import numpy as np
@@ -24,7 +25,7 @@ class KittiDataset(Dataset):
             ):
         assert mode in ['train', 'test'] , f'Invalid Mode: {mode}'
         self.mode = mode
-        self.npoints = 100
+        self.npoints = 400
         self.classes = ['Car']
         is_test = self.mode == 'test'
         self.data_dir = root
@@ -94,17 +95,25 @@ class KittiDataset(Dataset):
         if len(obj_list) <= 0:
             return None, None, None
         
+        roi_imgs = []
+        roi_pcs = []
+        
         for i, obj in enumerate(obj_list):
             roi_img = kitti_utils.crop_image(img, obj)
-
             roi_pc = kitti_utils.crop_lidar(ret_pts, obj, calib)
 
-            # Apply a mask to select points in point cloud
+            # Apply a mask to select points in the point cloud
             mask = self.__seperate_points__(roi_pc)
             roi_pc = roi_pc[mask, :]
-            break
 
-        return roi_img, roi_pc, obj_list
+            # Pad the point cloud to the fixed number of points
+            if self.npoints > roi_pc.shape[0]:
+                roi_pc = np.vstack([roi_pc, np.zeros((self.npoints - roi_pc.shape[0], 
+                                                      roi_pc.shape[1]))])
+            
+            roi_imgs.append(roi_img)
+            roi_pcs.append(roi_pc)
+        return roi_imgs, roi_pcs, obj_list
 
 
     def filtrate_objects(self, obj_list: np.ndarray) -> list:
@@ -205,4 +214,28 @@ class KittiDataset(Dataset):
         imgfov_pc_velo = pc_velo[fov_inds, :]
         
         return imgfov_pc_velo
+
+    def collate_fn(self, batch):
+        roi_imgs = []
+        roi_pcs = []
+        obj_list = []
+
+        # Extract the images, point clouds from the batch
+        # imgs, pcs, cls_ids = zip(*batch)
+        for i, (img, pc, obj) in enumerate(batch):
+            if img is None or pc is None:
+                continue
+            roi_imgs.append(torch.from_numpy(img[i]).float()) #.permute(2, 0, 1))
+            roi_pcs.append(torch.from_numpy(pc[i]).float())
+            obj_list.append(obj)
+            # obj_list.append(torch.from_numpy(obj[i]).float())
+            #obj_dicts = [{'class': CLASS_NAME_TO_ID[obj.cls_type], 
+                          #'box3d_lidar': camera_to_lidar_box(obj, calib)
+                          #} for obj in obj_list]
+            #obj_lists.append(obj_dicts)
+
+        roi_imgs = torch.stack(roi_imgs, dim=0)
+        roi_pcs = torch.stack(roi_pcs, dim=0)
+        
+        return roi_imgs, roi_pcs, obj_list
 

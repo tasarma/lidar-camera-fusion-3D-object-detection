@@ -378,8 +378,6 @@ def crop_lidar(points: np.ndarray, obj: Object3D, calib: Calibration) -> np.ndar
         ))
     
     cropped_pts = points[mask]
-    print('mask  ', mask.shape)
-    print('cropped  ',cropped_pts.shape)
 
     return cropped_pts
 
