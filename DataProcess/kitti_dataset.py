@@ -105,11 +105,12 @@ class KittiDataset(Dataset):
             # Apply a mask to select points in the point cloud
             mask = self.__seperate_points__(roi_pc)
             roi_pc = roi_pc[mask, :]
+            print('roi_pc.shape : ',roi_pc.shape)
 
             # Pad the point cloud to the fixed number of points
-            if self.npoints > roi_pc.shape[0]:
-                roi_pc = np.vstack([roi_pc, np.zeros((self.npoints - roi_pc.shape[0], 
-                                                      roi_pc.shape[1]))])
+            # if self.npoints > roi_pc.shape[0]:
+            #     roi_pc = np.vstack([roi_pc, np.zeros((self.npoints - roi_pc.shape[0], 
+            #                                           roi_pc.shape[1]))])
             
             roi_imgs.append(roi_img)
             roi_pcs.append(roi_pc)
@@ -132,8 +133,9 @@ class KittiDataset(Dataset):
 
     def __seperate_points__(self, pts_3d_rect: np.ndarray) -> np.ndarray:
         """Select points according to self.npoints"""
-
-        if self.npoints < len(pts_3d_rect):
+        len_pts = len(pts_3d_rect)
+        
+        if self.npoints < len_pts:
             pts_depth = pts_3d_rect[:, 2]
             pts_near_flag = pts_depth < 40.0
 
@@ -147,17 +149,11 @@ class KittiDataset(Dataset):
                 choice = np.concatenate((near_idxs_choice, far_idxs_choice), axis=0)
             else:
                 choice = near_idxs_choice
-
         else:
             # To complete pts_3d_rect to self.npoints, add more points
-            len_pts = len(pts_3d_rect)
             choice = np.arange(0, len_pts, dtype=np.int32)
             if self.npoints > len_pts:
-                if len(choice) > (self.npoints - len_pts):
-                    extra_choice = np.random.choice(choice, self.npoints - len_pts, replace=False)
-                    choice = np.concatenate((choice, extra_choice), axis=0)
-
-                extra_choice = np.random.choice(choice, len_pts, replace=False)
+                extra_choice = np.random.choice(choice, self.npoints - len_pts, replace=False)
                 choice = np.concatenate((choice, extra_choice), axis=0)
         
         np.random.shuffle(choice)
