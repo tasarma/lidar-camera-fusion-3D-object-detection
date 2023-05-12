@@ -1,0 +1,22 @@
+dataset:
+  name: KITTI
+  root_dir: /home/tasarma/Playground/Tez/dataset/one_sample
+  train_split: train.txt
+  val_split: val.txt
+  test_split: test.txt
+
+train:
+  batch_size: 15
+  num_epochs: 50
+  learning_rate: 0.001
+  optimizer: Adam
+  scheduler: CosineAnnealingLR
+  milestones: [25, 40]
+  weight_decay: 0.0005
+
+test:
+  batch_size: 16
+  conf_threshold: 0.5
+  nms_threshold: 0.5
+  output_dir: /path/to/save/results
+

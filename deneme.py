@@ -30,7 +30,7 @@ def get_corner_offsets(corners: np.ndarray, cloud: np.ndarray) -> np.ndarray:
     corner_offsets = cloud.reshape(cnt, 1, 3) - corners
     return corner_offsets # (cnt, 8, 3)
 
-roi_imgs, roi_pcs, obj_list = data.__getitem__(13)
+roi_imgs, roi_pcs, obj_list = data.__getitem__(20)
 
 # def simg(img):
 #     cv2.imshow('img', img)
@@ -38,4 +38,4 @@ roi_imgs, roi_pcs, obj_list = data.__getitem__(13)
 #     cv2.destroyAllWindows()
 
 # vis.display_lidar(pts_lidar[:, :3])
-# vis.display_lidar(ret_pts)
+vis.display_lidar(roi_pcs[0])

@@ -71,12 +71,6 @@ class KittiDataset(Dataset):
         assert os.path.exists(label_file), f'File not exist {label_file}'
         return kitti_utils.read_label(label_file)
 
-    def pad_matrix(self, matrix, fixed_size):
-        """Pad the matrix to the specified fixed size"""
-        n = matrix.shape[0]
-        padded_matrix = np.zeros((fixed_size, matrix.shape[1]))
-        padded_matrix[:n] = matrix
-        return padded_matrix
 
     def __getitem__(self, index: int):
         ''' Get the item at the specified index in the dataset'''
@@ -89,33 +83,34 @@ class KittiDataset(Dataset):
         ret_pts = self.get_lidar_in_image_fov(pts_lidar[:, :3], calib, 0, 0, img.shape[1], img.shape[0])
 
         sample_info = {'sample_id': sample_id}
+        sample_info['roi_img'] = []
+        sample_info['roi_pc'] = []
+        sample_info['cls_labels'] = []
 
         obj_list = self.filtrate_objects(self.get_label(sample_id))
 
         if len(obj_list) <= 0:
-            return None, None, None
-        
-        roi_imgs = []
-        roi_pcs = []
-        
+            sample_info['roi_img'] = None
+            sample_info['roi_pc'] = None
+            sample_info['cls_labels'] = None
+            return sample_info
+
         for i, obj in enumerate(obj_list):
             roi_img = kitti_utils.crop_image(img, obj)
             roi_pc = kitti_utils.crop_lidar(ret_pts, obj, calib)
 
             # Apply a mask to select points in the point cloud
-            mask = self.__seperate_points__(roi_pc)
-            roi_pc = roi_pc[mask, :]
-            print('roi_pc.shape : ',roi_pc.shape)
+            if len(roi_pc) >= 200:
+                mask = self.__seperate_points(roi_pc)
+                roi_pc = roi_pc[mask, :]
+                # vis.display_lidar(roi_pc)
+                print(i, sample_id, roi_pc.shape)
 
-            # Pad the point cloud to the fixed number of points
-            # if self.npoints > roi_pc.shape[0]:
-            #     roi_pc = np.vstack([roi_pc, np.zeros((self.npoints - roi_pc.shape[0], 
-            #                                           roi_pc.shape[1]))])
-            
-            roi_imgs.append(roi_img)
-            roi_pcs.append(roi_pc)
-        return roi_imgs, roi_pcs, obj_list
+                sample_info['roi_img'].append(roi_img)
+                sample_info['roi_pc'].append(roi_pc)
+                sample_info['cls_labels'].append(obj.cls_id)
 
+        return sample_info
 
     def filtrate_objects(self, obj_list: np.ndarray) -> list:
         type_whitelist = self.classes
@@ -131,10 +126,9 @@ class KittiDataset(Dataset):
 
         return valid_obj_list
 
-    def __seperate_points__(self, pts_3d_rect: np.ndarray) -> np.ndarray:
+    def __seperate_points(self, pts_3d_rect: np.ndarray) -> np.ndarray:
         """Select points according to self.npoints"""
         len_pts = len(pts_3d_rect)
-        
         if self.npoints < len_pts:
             pts_depth = pts_3d_rect[:, 2]
             pts_near_flag = pts_depth < 40.0
@@ -149,12 +143,14 @@ class KittiDataset(Dataset):
                 choice = np.concatenate((near_idxs_choice, far_idxs_choice), axis=0)
             else:
                 choice = near_idxs_choice
+
         else:
             # To complete pts_3d_rect to self.npoints, add more points
             choice = np.arange(0, len_pts, dtype=np.int32)
             if self.npoints > len_pts:
-                extra_choice = np.random.choice(choice, self.npoints - len_pts, replace=False)
-                choice = np.concatenate((choice, extra_choice), axis=0)
+                if len(choice) >= (self.npoints - len_pts):
+                    extra_choice = np.random.choice(choice, self.npoints - len_pts, replace=False)
+                    choice = np.concatenate((choice, extra_choice), axis=0)
         
         np.random.shuffle(choice)
         return choice
@@ -212,26 +208,18 @@ class KittiDataset(Dataset):
         return imgfov_pc_velo
 
     def collate_fn(self, batch):
-        roi_imgs = []
-        roi_pcs = []
-        obj_list = []
+        batch_size = batch.__len__()
+        ans_dict = {}
 
-        # Extract the images, point clouds from the batch
-        # imgs, pcs, cls_ids = zip(*batch)
-        for i, (img, pc, obj) in enumerate(batch):
-            if img is None or pc is None:
-                continue
-            roi_imgs.append(torch.from_numpy(img[i]).float()) #.permute(2, 0, 1))
-            roi_pcs.append(torch.from_numpy(pc[i]).float())
-            obj_list.append(obj)
-            # obj_list.append(torch.from_numpy(obj[i]).float())
-            #obj_dicts = [{'class': CLASS_NAME_TO_ID[obj.cls_type], 
-                          #'box3d_lidar': camera_to_lidar_box(obj, calib)
-                          #} for obj in obj_list]
-            #obj_lists.append(obj_dicts)
+        for key in batch[0].keys():
+            if isinstance(batch[0][key], np.ndarray):
+                ans_dict[key] = np.concatenate([batch[k][key][np.newaxis, ...] for k in range(batch_size)], axis=0)
+            else:
+                ans_dict[key] = [batch[k][key] for k in range(batch_size)]
+                if isinstance(batch[0][key], int):
+                    ans_dict[key] = np.array(ans_dict[key], dtype=np.int32)
+                elif isinstance(batch[0][key], float):
+                    ans_dict[key] = np.array(ans_dict[key], dtype=np.float32)
 
-        roi_imgs = torch.stack(roi_imgs, dim=0)
-        roi_pcs = torch.stack(roi_pcs, dim=0)
-        
-        return roi_imgs, roi_pcs, obj_list
+        return ans_dict
 

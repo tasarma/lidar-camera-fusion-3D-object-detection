@@ -5,7 +5,7 @@ import numpy as np
 class YoloV5(torch.nn.Module):
     def __init__(self):
         super(YoloV5, self).__init__()
-        self.model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
+        self.model = self.__load_module()
         self.features = torch.nn.Sequential(*list(self.model.children())[:-1])
     
     def process_image(self, img: np.ndarray) -> np.ndarray:
@@ -16,6 +16,14 @@ class YoloV5(torch.nn.Module):
         img = torch.from_numpy(img).unsqueeze(0)  # Add batch dimension
 
         return img
+    
+    def __load_module(self):
+        try:
+            return torch.hub.load('ultralytics/yolov5', 'yolov5s')
+        except Exception as e:
+            print(f"Failed to download 'yolov5s' module: {e}")
+            print("Loading pre-trained 'yolov5s.pt' file...")
+            return torch.hub.load('ultralytics/yolov5', 'custom', path='./yolov5s.pt')
 
     def forward(self, x):
         # self.process_image(x)
