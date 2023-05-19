@@ -43,9 +43,14 @@ def train_one_epoch(model, train_loader, optimizer, epoch):
     log_print(f'===============TRAIN EPOCH {epoch}================')
 
     for itr, batch in enumerate(train_loader):
-        # optimizer.zero_grad()
-        img, pc, cls_labels = batch['roi_img'], batch['roi_pc'], batch['cls_labels']
+        optimizer.zero_grad()
 
+        img, pts, ids = batch['roi_img'], batch['roi_pc'], batch['sample_id']
+        img = torch.from_numpy(img).cuda(non_blocking=True).int()
+        pts = torch.from_numpy(pts).cuda(non_blocking=True).float()
+
+        pred_cls = model(img, pts)
+        print(type)
 
 if __name__ == '__main__':
     model = Fusion().to(device)

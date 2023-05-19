@@ -25,7 +25,9 @@ class YoloV5(torch.nn.Module):
             print("Loading pre-trained 'yolov5s.pt' file...")
             return torch.hub.load('ultralytics/yolov5', 'custom', path='./yolov5s.pt')
 
-    def forward(self, x):
+    def forward(self, x, batch_size):
         # self.process_image(x)
         x = self.features(x)
+        print(type(x), x.shape, x.size)
+        x = x.view(batch_size, 1, 2048)
         return x

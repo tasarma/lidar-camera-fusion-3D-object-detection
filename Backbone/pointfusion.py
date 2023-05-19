@@ -24,9 +24,10 @@ class Fusion(nn.Module):
 
     def forward(self, img, pts):
         batch_size = img.size()[0]
-        B, D, N = pts.size() # Batch size, feature dimension, number of points
+        B, D, N = pts.size() # Batch size, number of points, number of channels
 
-        base_feat = self.yolov5(img).view(batch_size, 1, 2048)
+        base_feat = self.yolov5(img, batch_size)
+        print(base_feat.shape)
         global_feat, point_feat= self.pointnet(pts)
 
         base_feat = F.normalize(base_feat, p=2, dim=2)

@@ -85,19 +85,18 @@ class KittiDataset(Dataset):
         sample_info = {'sample_id': sample_id}
         sample_info['roi_img'] = []
         sample_info['roi_pc'] = []
-        sample_info['cls_labels'] = []
 
         obj_list = self.filtrate_objects(self.get_label(sample_id))
 
         if len(obj_list) <= 0:
             sample_info['roi_img'] = None
             sample_info['roi_pc'] = None
-            sample_info['cls_labels'] = None
             return sample_info
 
         for i, obj in enumerate(obj_list):
             roi_img = kitti_utils.crop_image(img, obj)
             roi_pc = kitti_utils.crop_lidar(ret_pts, obj, calib)
+            # cv2.imwrite(f'cropped_{i}.jpg', roi_img)
 
             # Apply a mask to select points in the point cloud
             if len(roi_pc) >= 200:
@@ -108,7 +107,6 @@ class KittiDataset(Dataset):
 
                 sample_info['roi_img'].append(roi_img)
                 sample_info['roi_pc'].append(roi_pc)
-                sample_info['cls_labels'].append(obj.cls_id)
 
         return sample_info
 
@@ -211,15 +209,22 @@ class KittiDataset(Dataset):
         batch_size = batch.__len__()
         ans_dict = {}
 
-        for key in batch[0].keys():
-            if isinstance(batch[0][key], np.ndarray):
-                ans_dict[key] = np.concatenate([batch[k][key][np.newaxis, ...] for k in range(batch_size)], axis=0)
-            else:
-                ans_dict[key] = [batch[k][key] for k in range(batch_size)]
-                if isinstance(batch[0][key], int):
-                    ans_dict[key] = np.array(ans_dict[key], dtype=np.int32)
-                elif isinstance(batch[0][key], float):
-                    ans_dict[key] = np.array(ans_dict[key], dtype=np.float32)
+        for i in range(batch_size):
+            for j, key in enumerate(batch[i].keys()):
+                if isinstance(batch[i][key], list):
+                    key_size = len(batch[i][key])
+                    if key not in ans_dict:
+                        ans_dict[key] = np.concatenate([batch[i][key][k][np.newaxis, ...] for k in range(key_size)], axis=0)
+                    else:
+                        ans_dict[key] = np.concatenate([ans_dict[key], 
+                                                        np.concatenate([batch[i][key][k][np.newaxis, ...] 
+                                                                        for k in range(key_size)], axis=0)], 
+                                                                        axis=0)
+                else:
+                    if key not in ans_dict:
+                        ans_dict[key] = [batch[k][key] for k in range(batch_size)]
+                        if isinstance(batch[0][key], int):
+                            ans_dict[key] = np.array(ans_dict[key], dtype=np.int32)
 
         return ans_dict
 
