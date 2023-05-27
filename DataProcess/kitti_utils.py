@@ -358,7 +358,7 @@ def compute_box_3d(obj, P):
 
     return corners_2d, np.transpose(corners_3d)
 
-def crop_image(img: np.ndarray, obj: Object3D, width: int=640) -> np.ndarray:
+def crop_image(img: np.ndarray, obj: Object3D, width: int=240) -> np.ndarray:
     l, t, r, b = obj.box2d.astype(int)
     scale_box = 0
     roi = img[t+scale_box:b+scale_box, l+scale_box:r+scale_box]

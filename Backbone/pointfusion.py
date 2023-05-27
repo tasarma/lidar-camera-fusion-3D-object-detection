@@ -7,14 +7,15 @@ import torch.nn.functional as F
 import torchvision.transforms
 
 from .Pointnet.pointnet import PointNetEncoder
-from .Yolov5.yolov5 import YoloV5
+from .Yolov5.yolov5 import YoloV5, ResNet50
 
 
 class Fusion(nn.Module):
     def __init__(self):
         super().__init__()
         self.pointnet = PointNetEncoder()
-        self.yolov5 = YoloV5()
+        # self.yolov5 = YoloV5()
+        self.resnet = ResNet50()
 
         self.fc1 = nn.Linear(3136, 512)
         self.fc2 = nn.Linear(512, 128)
@@ -26,7 +27,9 @@ class Fusion(nn.Module):
         batch_size = img.size()[0]
         B, D, N = pts.size() # Batch size, number of points, number of channels
 
-        base_feat = self.yolov5(img, batch_size)
+        # base_feat = self.yolov5(img, batch_size)
+        print(img.shape, img.size)
+        base_feat = self.resnet(img, batch_size)
         print(base_feat.shape)
         global_feat, point_feat= self.pointnet(pts)
 

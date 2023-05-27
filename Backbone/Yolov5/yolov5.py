@@ -1,6 +1,7 @@
 import cv2
 import torch
 import numpy as np
+import torchvision.models as models
 
 class YoloV5(torch.nn.Module):
     def __init__(self):
@@ -29,5 +30,20 @@ class YoloV5(torch.nn.Module):
         # self.process_image(x)
         x = self.features(x)
         print(type(x), x.shape, x.size)
+        x = x.view(batch_size, 1, 2048)
+        return x
+
+
+class ResNet50(torch.nn.Module):
+    def __init__(self):
+        super(ResNet50, self).__init__()
+        self.res50_model = models.resnet50(pretrained=True)
+        self.features = torch.nn.Sequential(*list(self.res50_model.children())[:-1])
+        
+    def forward(self, x, batch_size):
+        # self.process_image(x)
+        print('buradaaaaa ', type(x), x.shape, x.size)
+        x = x.permute(0, 3, 1, 2)
+        x = self.features(x)
         x = x.view(batch_size, 1, 2048)
         return x
