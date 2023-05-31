@@ -88,10 +88,11 @@ class KittiDataset(Dataset):
 
         obj_list = self.filtrate_objects(self.get_label(sample_id))
 
-        if len(obj_list) <= 0:
-            sample_info['roi_img'] = None
-            sample_info['roi_pc'] = None
-            return sample_info
+        # if len(obj_list) <= 0:
+        #     sample_info['roi_img'] = None
+        #     sample_info['roi_pc'] = None
+        #     sample_info['class'] = None
+        #     return sample_info
 
         for i, obj in enumerate(obj_list):
             roi_img = kitti_utils.crop_image(img, obj)
@@ -103,7 +104,7 @@ class KittiDataset(Dataset):
                 mask = self.__seperate_points(roi_pc)
                 roi_pc = roi_pc[mask, :]
                 # vis.display_lidar(roi_pc)
-                print(i, sample_id, roi_pc.shape)
+                # print(i, sample_id, roi_pc.shape)
 
                 sample_info['roi_img'].append(roi_img)
                 sample_info['roi_pc'].append(roi_pc)

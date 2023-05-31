@@ -42,7 +42,6 @@ class ResNet50(torch.nn.Module):
         
     def forward(self, x, batch_size):
         # self.process_image(x)
-        print('buradaaaaa ', type(x), x.shape, x.size)
         x = x.permute(0, 3, 1, 2)
         x = self.features(x)
         x = x.view(batch_size, 1, 2048)

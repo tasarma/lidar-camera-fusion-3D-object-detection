@@ -23,34 +23,43 @@ def log_print(info: str, log_f: Union[str, None]=None) -> None:
         print(info, file=log_f)
 
 
-def unsupervisedLoss(pred_offsets, pred_scores, offsets):
+def unsupervisedLoss(pred_offsets, pred_scores, targets):
     eps = 1e-16
     weight = 0.1
     L1 = nn.SmoothL1Loss(reduction='none')
-    loss_offset = L1(pred_offsets, offsets) # [B x pnts x 8 x 3]
-    loss_offset = torch.mean(loss_offset, (2, 3)) # [B x pnts]
-    # [B x pnts]
+    loss_offset = L1(pred_offsets, targets) # [B x pnts x 8 x 3]
+    loss_offset = torch.mean(loss_offset, dim=(2, 3)) # [B x pnts]
     loss = ((loss_offset * pred_scores) - (weight * torch.log(pred_scores + eps)))
-    loss = loss.mean() # [1]
+    # loss = loss.mean() # [1]
     return loss
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def train_one_epoch(model, train_loader, optimizer, epoch):
+def train_one_epoch(model, train_loader, optimizer, epoch, cfg):
     model.train()
     log_print(f'===============TRAIN EPOCH {epoch}================')
+    regressor = nn.SmoothL1Loss(reduction='none')
 
     for itr, batch in enumerate(train_loader):
         optimizer.zero_grad()
 
         img, pts, ids = batch['roi_img'], batch['roi_pc'], batch['sample_id']
-        img = torch.from_numpy(img).cuda(non_blocking=True).int()
+        img = torch.from_numpy(img).cuda(non_blocking=True).float()
         pts = torch.from_numpy(pts).cuda(non_blocking=True).float()
+        cls = torch.tensor([0] * img.shape[0])
 
-        pred_cls = model(img, pts)
-        print(type)
+
+        pred_offset, scores = model(img, pts)
+        print(pred_offset.shape, scores.shape, cls)
+        
+		# # Unsupervised loss
+        loss = unsupervisedLoss(pred_offset, scores, cls)
+        # loss = loss.sum(dim=1) / 400 # Number of points
+        # loss = loss.sum(dim=0) / cfg['train']['batch_size']
+
+
 
 if __name__ == '__main__':
     model = Fusion().to(device)
@@ -76,4 +85,4 @@ if __name__ == '__main__':
         #                          shuffle=True, collate_fn=data.collate_fn
         #                          )
 
-        train_one_epoch(model, train_loader, optimizer, epoch)
+        train_one_epoch(model, train_loader, optimizer, epoch, cfg)

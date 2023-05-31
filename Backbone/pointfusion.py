@@ -28,30 +28,31 @@ class Fusion(nn.Module):
         B, D, N = pts.size() # Batch size, number of points, number of channels
 
         # base_feat = self.yolov5(img, batch_size)
-        print(img.shape, img.size)
         base_feat = self.resnet(img, batch_size)
-        print(base_feat.shape)
+        # print(base_feat.shape)
         global_feat, point_feat= self.pointnet(pts)
 
         base_feat = F.normalize(base_feat, p=2, dim=2)
         global_feat = F.normalize(global_feat, p=2, dim=2)
         point_feat = F.normalize(point_feat, p=2, dim=2)
 
-        base_feat = base_feat.repeat(1, N, 1)
-        global_feat = global_feat.repeat(1, N, 1)
+        base_feat = base_feat.repeat(1, D, 1)
+        global_feat = global_feat.repeat(1, D, 1)
         
         # fusion
-        fusion_feat = torch.cat((base_feat, global_feat, point_feat), 2)  # 180
+        # print(base_feat.shape, global_feat.shape, point_feat.shape)
+        fusion_feat = torch.cat((base_feat, global_feat, point_feat), dim=2)  # 180
+        print('fusion shape' ,fusion_feat.shape)
         
         fusion_feat = self.fc1(fusion_feat)
         fusion_feat = F.relu(self.fc2(fusion_feat))
         fusion_feat = F.relu(self.fc3(fusion_feat))
 
         corner_offsets = self.fc4(fusion_feat)
-        corner_offsets = corner_offsets.view(batch_size, N, 8, 3)
+        corner_offsets = corner_offsets.view(batch_size, D, 8, 3)
         
         scores = self.fc5(fusion_feat)
-        scores = scores.view(-1, N)
+        scores = scores.view(-1, D)
         
         # Shift scores so minimum is 0
         minimum = (scores.min(dim=1)[0]).view(batch_size,-1)
