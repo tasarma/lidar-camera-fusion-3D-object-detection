@@ -82,10 +82,6 @@ class KittiDataset(Dataset):
         # Get valid points (projected points should be in image)
         ret_pts = self.get_lidar_in_image_fov(pts_lidar[:, :3], calib, 0, 0, img.shape[1], img.shape[0])
 
-        sample_info = {'sample_id': sample_id}
-        sample_info['roi_img'] = []
-        sample_info['roi_pc'] = []
-
         obj_list = self.filtrate_objects(self.get_label(sample_id))
 
         # if len(obj_list) <= 0:
@@ -93,6 +89,11 @@ class KittiDataset(Dataset):
         #     sample_info['roi_pc'] = None
         #     sample_info['class'] = None
         #     return sample_info
+
+        sample_info = {'sample_id': sample_id}
+        sample_info['roi_img'] = []
+        sample_info['roi_pc'] = []
+        sample_info['corner_offsets'] = []
 
         for i, obj in enumerate(obj_list):
             roi_img = kitti_utils.crop_image(img, obj)
@@ -103,15 +104,19 @@ class KittiDataset(Dataset):
             if len(roi_pc) >= 200:
                 mask = self.__seperate_points(roi_pc)
                 roi_pc = roi_pc[mask, :]
+                corner3D_info = kitti_utils.get_boxes3d(obj)
+                corners_3D = kitti_utils.box3d_to_corner3d(corner3D_info)
+                corner_offsets1 = kitti_utils.get_corner_offsets1(corners_3D, roi_pc)
+                # corner_offsets2 = kitti_utils.get_corner_offsets2(corners_3D, roi_pc)
                 # vis.display_lidar(roi_pc)
                 # print(i, sample_id, roi_pc.shape)
 
                 sample_info['roi_img'].append(roi_img)
                 sample_info['roi_pc'].append(roi_pc)
-
+                sample_info['corner_offsets'].append(corner_offset1)
         return sample_info
 
-    def filtrate_objects(self, obj_list: np.ndarray) -> list:
+    def filtrate_objects(self, obj_list: np.ndarray) -> List[Object3D]:
         type_whitelist = self.classes
         if self.mode == 'train':
             type_whitelist = list(self.classes)
@@ -209,8 +214,10 @@ class KittiDataset(Dataset):
     def collate_fn(self, batch):
         batch_size = batch.__len__()
         ans_dict = {}
-
+        
         for i in range(batch_size):
+            if len(batch[i]['roi_pc']) == 0:
+                continue
             for j, key in enumerate(batch[i].keys()):
                 if isinstance(batch[i][key], list):
                     key_size = len(batch[i][key])

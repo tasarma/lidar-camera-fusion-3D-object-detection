@@ -212,17 +212,16 @@ def check_labels(objects) -> Tuple[np.ndarray, bool]:
     return labels, noObjectLabels
 
 
-def get_boxes3d(obj_list: list) -> np.ndarray:
+def get_boxes3d(obj: Object3D) -> np.ndarray:
     """Extracts the 3D box information"""
-    box3d_list = np.zeros((obj_list.__len__(), 7), dtype=np.float32)
-    for i, obj in enumerate(obj_list):
-        box3d_list[i, 0:3] = obj.t # location (x,y,z) in camera coord.
-        box3d_list[i, 3] = obj.h # box height
-        box3d_list[i, 4] = obj.w # box width
-        box3d_list[i, 5] = obj.l # box length (in meters)
-        box3d_list[i, 6] = obj.ry # yaw angle 
+    box3d = np.zeros((1, 7), dtype=np.float32)
+    box3d[0, 0:3] = obj.t # location (x,y,z) in camera coord.
+    box3d[0, 3] = obj.h # box height
+    box3d[0, 4] = obj.w # box width
+    box3d[0, 5] = obj.l # box length (in meters)
+    box3d[0, 6] = obj.ry # yaw angle 
 
-    return box3d_list
+    return box3d
 
 
 def roty(t):
@@ -381,6 +380,17 @@ def crop_lidar(points: np.ndarray, obj: Object3D, calib: Calibration) -> np.ndar
 
     return cropped_pts
 
+def get_corner_offsets1(corners, cloud):
+    cnt = cloud.shape[0]  # Number of points in the cloud
+    corner_offsets = cloud[:, np.newaxis, :] - corners  # Compute offsets
+    
+    return corner_offsets
 
-
+def get_corner_offsets2(corners, cloud):
+    cnt = cloud.shape[0]
+    corner_offsets = np.zeros((cnt, 8, 3))
+    for i in range(0, cnt):
+        # for j in range(0, 8):
+        corner_offsets[i] = np.broadcast_to(cloud[i], (8,3)) - corners[0]
+    return corner_offsets
 
