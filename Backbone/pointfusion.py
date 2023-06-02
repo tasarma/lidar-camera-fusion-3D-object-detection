@@ -42,7 +42,6 @@ class Fusion(nn.Module):
         # fusion
         # print(base_feat.shape, global_feat.shape, point_feat.shape)
         fusion_feat = torch.cat((base_feat, global_feat, point_feat), dim=2)  # 180
-        print('fusion shape' ,fusion_feat.shape)
         
         fusion_feat = self.fc1(fusion_feat)
         fusion_feat = F.relu(self.fc2(fusion_feat))

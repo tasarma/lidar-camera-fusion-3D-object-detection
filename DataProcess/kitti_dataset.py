@@ -94,6 +94,7 @@ class KittiDataset(Dataset):
         sample_info['roi_img'] = []
         sample_info['roi_pc'] = []
         sample_info['corner_offsets'] = []
+        sample_info['gt_corners'] = []
 
         for i, obj in enumerate(obj_list):
             roi_img = kitti_utils.crop_image(img, obj)
@@ -105,15 +106,23 @@ class KittiDataset(Dataset):
                 mask = self.__seperate_points(roi_pc)
                 roi_pc = roi_pc[mask, :]
                 corner3D_info = kitti_utils.get_boxes3d(obj)
-                corners_3D = kitti_utils.box3d_to_corner3d(corner3D_info)
-                corner_offsets1 = kitti_utils.get_corner_offsets1(corners_3D, roi_pc)
+                corners_3D = kitti_utils.box3d_to_corner3d(corner3D_info)[0]
+                corner_offsets = kitti_utils.get_corner_offsets(corners_3D, roi_pc)
                 # corner_offsets2 = kitti_utils.get_corner_offsets2(corners_3D, roi_pc)
                 # vis.display_lidar(roi_pc)
                 # print(i, sample_id, roi_pc.shape)
 
                 sample_info['roi_img'].append(roi_img)
                 sample_info['roi_pc'].append(roi_pc)
-                sample_info['corner_offsets'].append(corner_offset1)
+                sample_info['corner_offsets'].append(corner_offsets)
+
+                if sample_info['gt_corners'] == []:
+                    sample_info['gt_corners'].append(corners_3D)
+                else:
+                    for crnr in sample_info['gt_corners']:
+                        if not np.array_equal(corners_3D, crnr):
+                            sample_info['gt_corners'].append(corners_3D)
+
         return sample_info
 
     def filtrate_objects(self, obj_list: np.ndarray) -> List[Object3D]:

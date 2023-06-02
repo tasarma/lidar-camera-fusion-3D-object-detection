@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import open3d as o3d
 # from mayavi import mlab
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 from . import init_path
 from DataProcess import kitti_utils, transformation
@@ -126,3 +126,43 @@ def show_lidar_with_boxes(lidar, labels, calib):
     mlab.view(azimuth=230, distance=50)
     # mlab.savefig(filename='examples/kitti_3dbox_to_cloud.png')
     mlab.show()
+
+
+def render_pcl(pc, box =  [], name = "default"):
+   print(pc)
+   fig=plt.figure(name)
+   ax = fig.gca(projection='3d')
+    
+   X = pc[0]
+   Y = pc[1]
+   Z = pc[2]
+   ax.scatter(X, Y, Z, s=1)
+   
+   # pcl characteristics 
+   print("X maximum is :" + str(X.max()))
+   print("Y maximum is :" + str(Y.max()))
+   print("Z maximum is :" + str(Z.max()))
+
+   max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
+   Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
+   Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
+   Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+
+   i=0
+   for xb, yb, zb in zip(Xb, Yb, Zb):
+      i = i+1
+      ax.plot([xb], [yb], [zb], 'b')
+   if len(box)!=0:
+       x = box[0] 
+       y = box[1]
+       z = box[2]
+       ax.plot(x, y, z, color = 'r')
+   return ax
+
+def visualize_result(anchor_point, offset, gt_boxes):
+   for i in range(0,4):
+      final_pred = np.zeros((8,3))
+      final_pred = offset[i] + anchor_point[i, None]
+      render_pcl(final_pred.T, name = str(i))
+      render_pcl(gt_boxes[i].T, name = str(i))
+   plt.show()

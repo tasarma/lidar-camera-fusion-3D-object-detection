@@ -3,9 +3,11 @@ import argparse
 
 import yaml
 import torch
+import numpy as np
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from Utils.visualization import visualize_result
 from Backbone.pointfusion import Fusion
 from DataProcess.kitti_dataset import KittiDataset
 
@@ -37,27 +39,65 @@ def unsupervisedLoss(pred_offsets, pred_scores, targets):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def train_one_epoch(model, train_loader, optimizer, epoch, cfg):
+def train_one_epoch(
+        model: Fusion, 
+        train_loader: DataLoader, 
+        optimizer: torch.optim.Adam, 
+        epoch: int, 
+        cfg: dict
+        ):
     model.train()
     log_print(f'===============TRAIN EPOCH {epoch}================')
-    regressor = nn.SmoothL1Loss(reduction='none')
-
+    loss_temp = 0
+    loss_epoch = 0
+    
     for itr, batch in enumerate(train_loader):
+        img, points = batch['roi_img'], batch['roi_pc']
+        targets, gt_corners = batch['corner_offsets'], batch['gt_corners']
+        
+        img = torch.from_numpy(img).cuda(non_blocking=True).float()
+        points = torch.from_numpy(points).cuda(non_blocking=True).float()
+        targets = torch.from_numpy(targets).cuda(non_blocking=True).float()
+        gt_corners = torch.from_numpy(gt_corners).cuda(non_blocking=True).float()
+
         optimizer.zero_grad()
 
-        img, pts, ids = batch['roi_img'], batch['roi_pc'], batch['sample_id']
-        img = torch.from_numpy(img).cuda(non_blocking=True).float()
-        pts = torch.from_numpy(pts).cuda(non_blocking=True).float()
-        cls = torch.tensor([0] * img.shape[0])
 
-
-        pred_offset, scores = model(img, pts)
-        print(pred_offset.shape, scores.shape, cls)
+        pred_offset, scores = model(img, points)
         
-		# # Unsupervised loss
-        loss = unsupervisedLoss(pred_offset, scores, cls)
-        # loss = loss.sum(dim=1) / 400 # Number of points
-        # loss = loss.sum(dim=0) / cfg['train']['batch_size']
+		# Unsupervised loss
+        loss = 0
+        loss = unsupervisedLoss(pred_offset, scores, targets)
+        loss = loss.sum(dim=1) / 400 # Number of points
+        loss = loss.sum(dim=0) / cfg['train']['batch_size']
+
+        loss_temp += loss.item()
+        loss_epoch += loss.item()
+
+        loss.backward()
+        optimizer.step()
+
+        # Finding anchor point and predicted offset based on maximum score
+        max_inds = scores.max(dim=1)[1].cpu().numpy()
+        p_offset = np.zeros((4, 8, 3))
+        anchor_points = np.zeros((4, 3))
+        truth_boxes = np.zeros((4, 8, 3))
+        for i in range(0, 4):
+            p_offset[i] = pred_offset[i][max_inds[i]].cpu().detach().numpy()
+            anchor_points[i] = points[i][max_inds[i]].cpu().numpy()
+            truth_boxes[i] = gt_corners[i].cpu().numpy()
+        
+        visualize_result(p_offset, anchor_points, truth_boxes)
+        # if itr % 10 == 0 and itr != 0:
+        #     loss_temp /= 10
+        #     print(f"Epoch [{epoch}/{cfg['train']['num_epochs']}], Step [{itr}] Loss: {loss_temp:.4f}")
+        #     loss_temp = 0
+    # loss_epoch /= nusc_iters_per_epoch
+    # # logger.scalar_summary('loss', loss_epoch, epoch)
+    
+    # print(f"Loss for Epoch {epoch} is {loss_epoch}")
+    # loss_epoch = 0
+
 
 
 
@@ -73,16 +113,18 @@ if __name__ == '__main__':
                                  lr=cfg['train']['learning_rate'], 
                                  weight_decay=cfg['train']['weight_decay']
                                  )
-    epoch = 1 
+    epoch = cfg['train']['num_epochs']
+    batch_size = cfg['train']['batch_size']
 
     if args.mode == 'train':
         # load dataset
         train_set = KittiDataset(root=cfg['dataset']['root_dir'], mode='train') 
-        train_loader = DataLoader(dataset=train_set, batch_size=cfg['train']['batch_size'], 
+        train_loader = DataLoader(dataset=train_set, batch_size=batch_size, 
                                   shuffle=True, collate_fn=train_set.collate_fn
                                   )
         # test_loader = DataLoader(dataset=test_set, batch_size=batch_size, 
         #                          shuffle=True, collate_fn=data.collate_fn
         #                          )
 
-        train_one_epoch(model, train_loader, optimizer, epoch, cfg)
+        for i in range(epoch):
+            train_one_epoch(model, train_loader, optimizer, i, cfg)

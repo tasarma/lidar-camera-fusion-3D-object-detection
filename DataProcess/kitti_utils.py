@@ -380,7 +380,7 @@ def crop_lidar(points: np.ndarray, obj: Object3D, calib: Calibration) -> np.ndar
 
     return cropped_pts
 
-def get_corner_offsets1(corners, cloud):
+def get_corner_offsets(corners, cloud):
     cnt = cloud.shape[0]  # Number of points in the cloud
     corner_offsets = cloud[:, np.newaxis, :] - corners  # Compute offsets
     
