@@ -1,3 +1,4 @@
+from typing import List
 import os 
 import sys
 import math
@@ -5,17 +6,43 @@ import math
 import cv2
 import numpy as np
 import open3d as o3d
-# from mayavi import mlab
+from mayavi import mlab
 import matplotlib.pyplot as plt
 
 from . import init_path
 from DataProcess import kitti_utils, transformation
 import Config.kitti_config as cnf
+from DataProcess.kitti_dataset import KittiDataset
+
+def resize_and_shift_bounding_boxes(boxes: List[KittiDataset]):
+    resized_boxes = []
+    # boxes[0].
+    for box in boxes:
+        # Calculate the shift amount
+        x_shift = box.width * 0.1
+        y_shift = box.height * 0.1
+
+        # Calculate the new dimensions
+        new_width = box.width + x_shift
+        new_height = box.height + y_shift
+
+        # Calculate the new coordinates
+        new_x_min = box.x_min - (x_shift / 2)
+        new_y_min = box.y_min - (y_shift / 2)
+        new_x_max = new_x_min + new_width
+        new_y_max = new_y_min + new_height
+
+        # Create a new bounding box object with the resized and shifted dimensions
+        resized_box = BoundingBox(new_x_min, new_y_min, new_x_max, new_y_max)
+        resized_boxes.append(resized_box)
+
+    return resized_boxes
 
 
 def show_image_with_boxes(img, objects, calib, show3d=False):
     ''' Show image with 2D bounding boxes '''
     img2 = np.copy(img)  # for 3d bbox
+    # objects = resize_and_shift_bounding_boxes(objects)
     for obj in objects:
         if obj.cls_type == 'DontCare': continue
         cv2.rectangle(img, (int(obj.xmin),int(obj.ymin)),
@@ -129,40 +156,41 @@ def show_lidar_with_boxes(lidar, labels, calib):
 
 
 def render_pcl(pc, box =  [], name = "default"):
-#    print(pc)
-   fig=plt.figure(name)
-   ax = fig.add_subplot(projection='3d')
+    fig=plt.figure(name)
+    ax = fig.add_subplot(projection='3d')
+
+    X = pc[0]
+    Y = pc[1]
+    Z = pc[2]
+    ax.scatter(X, Y, Z, s=1)
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
+    Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
+    Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
+    Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
     
-   X = pc[0]
-   Y = pc[1]
-   Z = pc[2]
-   ax.scatter(X, Y, Z, s=1)
-   
-   # pcl characteristics 
-   print("X maximum is :" + str(X.max()))
-   print("Y maximum is :" + str(Y.max()))
-   print("Z maximum is :" + str(Z.max()))
+    i=0
+    for xb, yb, zb in zip(Xb, Yb, Zb):
+        i = i+1
+        ax.plot([xb], [yb], [zb], 'b')
 
-   max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
-   Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
-   Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
-   Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+    if len(box)!=0:
+        x = box[0] 
+        y = box[1]
+        z = box[2]
+        ax.plot(x, y, z, color = 'r')
 
-   i=0
-   for xb, yb, zb in zip(Xb, Yb, Zb):
-      i = i+1
-      ax.plot([xb], [yb], [zb], 'b')
-   if len(box)!=0:
-       x = box[0] 
-       y = box[1]
-       z = box[2]
-       ax.plot(x, y, z, color = 'r')
-   return ax
+    for i in range(len(X)):
+        ax.plot([X[i], Xb[i]], [Y[i], Yb[i]], [Z[i], Zb[i]], color='g')
+    
+    return ax
 
 def visualize_result(anchor_point, offset, gt_boxes):
-   for i in range(0,4):
+   fig = mlab.figure(bgcolor=(0, 0, 0), size=(1280, 720))
+   for i in range(1):
       final_pred = np.zeros((8,3))
       final_pred = offset[i] + anchor_point[i, None]
-      render_pcl(final_pred.T, name = str(i))
-      render_pcl(gt_boxes[i].T, name = str(i))
-   plt.show()
+      draw_gt_boxes3d(final_pred.T, fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
+      draw_gt_boxes3d(gt_boxes[i].T, fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
+    #   render_pcl(final_pred.T, name = str(i) + ' pred')
+    #   render_pcl(gt_boxes[i].T, name = str(i) + ' gt')
+#    plt.show()

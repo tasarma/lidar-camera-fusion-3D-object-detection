@@ -1,41 +1,136 @@
-import cv2
+from typing import List, Union
+import argparse
+
+import yaml
 import torch
-import open3d
 import numpy as np
-from PIL import Image
+import torch.nn as nn
+import matplotlib.pyplot as plt
+from torch.utils.data import DataLoader
 
+from Utils.visualization import visualize_result, show_image_with_boxes
+from Backbone.pointfusion import Fusion
 from DataProcess.kitti_dataset import KittiDataset
-from Utils import visualization as vis
-
-root = r'/home/tasarma/Playground/Tez/dataset/kitti'
-data = KittiDataset(root=root, mode='train')
-
-def getCorners(points):
-    # get the corners from the transformed pointcloud
-    pcd = open3d.geometry.PointCloud()
-    pcd.points = open3d.utility.Vector3dVector(points)
-    obb = open3d.geometry.OrientedBoundingBox()
-    obb = obb.create_from_points(pcd.points)
-    corners = np.asarray(obb.get_box_points())
-    return corners
-
-# to able to use this function 
-# first you need to change dtype of numpy array to "float64"
-# and change size of the array: from [... , 4] (x, y, z, reflactnece) to [... , 3] (x, y, z)
-# then you can use this function
 
 
-def get_corner_offsets(corners: np.ndarray, cloud: np.ndarray) -> np.ndarray:
-    cnt = cloud.shape[0]
-    corner_offsets = cloud.reshape(cnt, 1, 3) - corners
-    return corner_offsets # (cnt, 8, 3)
+parser = argparse.ArgumentParser(description="Arg parser")
+parser.add_argument("--mode", type=str, default='train')
 
-roi_imgs, roi_pcs, obj_list = data.__getitem__(20)
 
-# def simg(img):
-#     cv2.imshow('img', img)
-#     cv2.waitKey(0)
-#     cv2.destroyAllWindows()
+args = parser.parse_args()
 
-# vis.display_lidar(pts_lidar[:, :3])
-vis.display_lidar(roi_pcs[0])
+
+def log_print(info: str, log_f: Union[str, None]=None) -> None:
+    print(info)
+    if log_f is not None:
+        print(info, file=log_f)
+
+
+def unsupervisedLoss(pred_offsets, pred_scores, gt_pts_offsets):
+    eps = 1e-16
+    weight = 0.1
+    L1 = nn.SmoothL1Loss(reduction='none')
+    loss_offset = L1(pred_offsets, gt_pts_offsets) # [B x pnts x 8 x 3]
+    loss_offset = torch.mean(loss_offset, dim=(2, 3)) # [B x pnts]
+    loss = ((loss_offset * pred_scores) - (weight * torch.log(pred_scores + eps)))
+    # loss = loss.mean() # [1]
+    return loss
+
+def saveCheckpoint(model, epoch, optimizer, loss, path):
+    torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss
+                }, path)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+def train_one_epoch(
+        model: Fusion, 
+        train_loader: DataLoader, 
+        optimizer: torch.optim.Adam, 
+        epoch: int, 
+        cfg: dict
+        ):
+    model.train()
+    log_print(f'===============TRAIN EPOCH {epoch+1}================')
+    running_loss = 0.
+    last_loss = 0.
+    p = np.zeros((4, 8, 3))
+    a = np.zeros((4, 8, 3))
+    t = np.zeros((4, 8, 3))
+    for itr, batch in enumerate(train_loader):
+        img, points = batch['roi_img'], batch['roi_pc']
+        gt_pts_offsets, gt_corners = batch['gt_pts_offsets'], batch['gt_corners']
+        img = torch.from_numpy(img).float().cuda(non_blocking=True).float()
+        points = torch.from_numpy(points).float().cuda(non_blocking=True).float()
+        gt_pts_offsets = torch.from_numpy(gt_pts_offsets).float().cuda(non_blocking=True).float()
+        gt_corners = torch.from_numpy(gt_corners).float().cuda(non_blocking=True).float()
+
+        optimizer.zero_grad()
+
+        pred_offset, scores = model(img, points)
+        
+		# Unsupervised loss
+        loss = 0
+        loss = unsupervisedLoss(pred_offset, scores, gt_pts_offsets)
+        loss = loss.sum(dim=1) / 400 # Number of points
+        loss = loss.sum(dim=0) / cfg['train']['batch_size']
+
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        # Finding anchor point and predicted offset based on maximum score
+        max_inds = scores.max(dim=1)[1].cpu().numpy()
+        p_offset = np.zeros((4, 8, 3))
+        anchor_points = np.zeros((4, 3))
+        truth_boxes = np.zeros((4, 8, 3))
+        for i in range(0, 4):
+            p_offset[i] = pred_offset[i][max_inds[i]].cpu().detach().numpy()
+            anchor_points[i] = points[i][max_inds[i]].cpu().numpy()
+            truth_boxes[i] = gt_corners[i].cpu().numpy()
+        
+        p = p_offset
+        a = anchor_points
+        t = truth_boxes
+        # show_image_with_boxes(img[0], anchor_points, truth_boxes)
+        # show_image_with_boxes(img[0], anchor_points, truth_boxes)
+        # visualize_result(anchor_points, p_offset, truth_boxes)
+        # loss_epoch = running_loss / cfg['train']['batch_size']
+        if itr % 10 == 0 and itr != 0:
+            last_loss = running_loss / 10 # loss per batch
+            print(f"Epoch [{epoch}/{cfg['train']['num_epochs']}], Step [{itr}] Loss: {last_loss:.4f}")
+            # saveCheckpoint(model, epoch, optimizer, loss, f'models/pointfusion_{itr}.pth')
+            running_loss = 0
+    
+    print(f"Loss for Epoch {epoch+1} is {last_loss} and running_loss is {running_loss}")
+    return p, a, t #last_loss
+
+
+model = Fusion().to(device)
+
+with open('Config/train_test.yaml', 'r') as f:
+    cfg = yaml.load(f, Loader=yaml.FullLoader)
+
+# loss and optimizer
+criterion = unsupervisedLoss
+optimizer = torch.optim.Adam(model.parameters(), 
+                                lr=cfg['train']['learning_rate'], 
+                                weight_decay=cfg['train']['weight_decay']
+                                )
+epoch = cfg['train']['num_epochs']
+batch_size = cfg['train']['batch_size']
+
+# load dataset
+train_set = KittiDataset(root=cfg['dataset']['root_dir'], mode='train') 
+train_loader = DataLoader(dataset=train_set, batch_size=batch_size, 
+                            shuffle=True, collate_fn=train_set.collate_fn
+                            )
+
+p, a, t = train_one_epoch(model, train_loader, optimizer, 0, cfg)
+# loss_values.append(loss)
+
+print('Finished Training')

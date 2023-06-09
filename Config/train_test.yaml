@@ -1,6 +1,6 @@
 dataset:
   name: KITTI
-  root_dir: /home/dara/Workspace/Bitirme/Dataset/kitti
+  root_dir: /home/tasarma/Playground/Tez/dataset/one_sample
   train_split: train.txt
   val_split: val.txt
   test_split: test.txt

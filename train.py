@@ -8,7 +8,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-from Utils.visualization import visualize_result
+from Utils.visualization import visualize_result, show_image_with_boxes
 from Backbone.pointfusion import Fusion
 from DataProcess.kitti_dataset import KittiDataset
 
@@ -26,11 +26,11 @@ def log_print(info: str, log_f: Union[str, None]=None) -> None:
         print(info, file=log_f)
 
 
-def unsupervisedLoss(pred_offsets, pred_scores, targets):
+def unsupervisedLoss(pred_offsets, pred_scores, gt_pts_offsets):
     eps = 1e-16
     weight = 0.1
     L1 = nn.SmoothL1Loss(reduction='none')
-    loss_offset = L1(pred_offsets, targets) # [B x pnts x 8 x 3]
+    loss_offset = L1(pred_offsets, gt_pts_offsets) # [B x pnts x 8 x 3]
     loss_offset = torch.mean(loss_offset, dim=(2, 3)) # [B x pnts]
     loss = ((loss_offset * pred_scores) - (weight * torch.log(pred_scores + eps)))
     # loss = loss.mean() # [1]
@@ -61,12 +61,12 @@ def train_one_epoch(
     
     for itr, batch in enumerate(train_loader):
         img, points = batch['roi_img'], batch['roi_pc']
-        targets, gt_corners = batch['corner_offsets'], batch['gt_corners']
+        gt_pts_offsets, gt_corners = batch['gt_pts_offsets'], batch['gt_corners']
         
-        img = torch.from_numpy(img).float()#.cuda(non_blocking=True).float()
-        points = torch.from_numpy(points).float()#.cuda(non_blocking=True).float()
-        targets = torch.from_numpy(targets).float()#.cuda(non_blocking=True).float()
-        gt_corners = torch.from_numpy(gt_corners).float()#.cuda(non_blocking=True).float()
+        img = torch.from_numpy(img).float().cuda(non_blocking=True).float()
+        points = torch.from_numpy(points).float().cuda(non_blocking=True).float()
+        gt_pts_offsets = torch.from_numpy(gt_pts_offsets).float().cuda(non_blocking=True).float()
+        gt_corners = torch.from_numpy(gt_corners).float().cuda(non_blocking=True).float()
 
         optimizer.zero_grad()
 
@@ -74,7 +74,7 @@ def train_one_epoch(
         
 		# Unsupervised loss
         loss = 0
-        loss = unsupervisedLoss(pred_offset, scores, targets)
+        loss = unsupervisedLoss(pred_offset, scores, gt_pts_offsets)
         loss = loss.sum(dim=1) / 400 # Number of points
         loss = loss.sum(dim=0) / cfg['train']['batch_size']
 
@@ -83,16 +83,17 @@ def train_one_epoch(
 
         running_loss += loss.item()
         # Finding anchor point and predicted offset based on maximum score
-        # max_inds = scores.max(dim=1)[1].cpu().numpy()
-        # p_offset = np.zeros((4, 8, 3))
-        # anchor_points = np.zeros((4, 3))
-        # truth_boxes = np.zeros((4, 8, 3))
-        # for i in range(0, 4):
-        #     p_offset[i] = pred_offset[i][max_inds[i]].cpu().detach().numpy()
-        #     anchor_points[i] = points[i][max_inds[i]].cpu().numpy()
-        #     truth_boxes[i] = gt_corners[i].cpu().numpy()
+        max_inds = scores.max(dim=1)[1].cpu().numpy()
+        p_offset = np.zeros((4, 8, 3))
+        anchor_points = np.zeros((4, 3))
+        truth_boxes = np.zeros((4, 8, 3))
+        for i in range(0, 4):
+            p_offset[i] = pred_offset[i][max_inds[i]].cpu().detach().numpy()
+            anchor_points[i] = points[i][max_inds[i]].cpu().numpy()
+            truth_boxes[i] = gt_corners[i].cpu().numpy()
         
-        # visualize_result(p_offset, anchor_points, truth_boxes)
+        # show_image_with_boxes(img[0], anchor_points, truth_boxes)
+        # visualize_result(anchor_points, p_offset, truth_boxes)
         # loss_epoch = running_loss / cfg['train']['batch_size']
         if itr % 10 == 0 and itr != 0:
             last_loss = running_loss / 10 # loss per batch
@@ -135,5 +136,5 @@ if __name__ == '__main__':
             loss_values.append(loss)
         
         print('Finished Training')
-        plt.plot(np.array(loss_values), 'r')
-        plt.show()
+        # plt.plot(np.array(loss_values), 'r')
+        # plt.show()

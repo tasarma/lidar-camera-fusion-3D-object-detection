@@ -37,7 +37,7 @@ class YoloV5(torch.nn.Module):
 class ResNet50(torch.nn.Module):
     def __init__(self):
         super(ResNet50, self).__init__()
-        self.res50_model = models.resnet50(pretrained=True)
+        self.res50_model = models.resnet50(weights=True)
         self.features = torch.nn.Sequential(*list(self.res50_model.children())[:-1])
         
     def forward(self, x, batch_size):

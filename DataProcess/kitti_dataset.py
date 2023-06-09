@@ -13,7 +13,7 @@ import DataProcess.kitti_utils as kitti_utils
 from DataProcess.transformation import camera_to_lidar_box
 from DataProcess.kitti_utils import Object3D, Calibration as Calib
 from Config.kitti_config import CLASS_NAME_TO_ID
-from Utils import visualization as vis
+# from Utils import visualization as vis
 
 
 class KittiDataset(Dataset):
@@ -93,8 +93,9 @@ class KittiDataset(Dataset):
         sample_info = {'sample_id': sample_id}
         sample_info['roi_img'] = []
         sample_info['roi_pc'] = []
-        sample_info['corner_offsets'] = []
+        sample_info['gt_pts_offsets'] = []
         sample_info['gt_corners'] = []
+        # return img, calib, obj_list
 
         for i, obj in enumerate(obj_list):
             roi_img = kitti_utils.crop_image(img, obj)
@@ -102,26 +103,27 @@ class KittiDataset(Dataset):
             # cv2.imwrite(f'cropped_{i}.jpg', roi_img)
 
             # Apply a mask to select points in the point cloud
-            if len(roi_pc) >= 200:
+            if len(roi_pc) >= 300:
                 mask = self.__seperate_points(roi_pc)
                 roi_pc = roi_pc[mask, :]
                 corner3D_info = kitti_utils.get_boxes3d(obj)
                 corners_3D = kitti_utils.box3d_to_corner3d(corner3D_info)[0]
-                corner_offsets = kitti_utils.get_corner_offsets(corners_3D, roi_pc)
-                # corner_offsets2 = kitti_utils.get_corner_offsets2(corners_3D, roi_pc)
+                gt_pts_offset = kitti_utils.gt_pts_corner_offset(corners_3D, roi_pc)
+                # gt_pts_offset2 = kitti_utils.gt_pts_corner_offset2(corners_3D, roi_pc)
                 # vis.display_lidar(roi_pc)
                 # print(i, sample_id, roi_pc.shape)
 
                 sample_info['roi_img'].append(roi_img)
                 sample_info['roi_pc'].append(roi_pc)
-                sample_info['corner_offsets'].append(corner_offsets)
+                sample_info['gt_pts_offsets'].append(gt_pts_offset)
+                sample_info['gt_corners'].append(corners_3D)
 
-                if sample_info['gt_corners'] == []:
-                    sample_info['gt_corners'].append(corners_3D)
-                else:
-                    for crnr in sample_info['gt_corners']:
-                        if not np.array_equal(corners_3D, crnr):
-                            sample_info['gt_corners'].append(corners_3D)
+                # if sample_info['gt_corners'] == []:
+                #     sample_info['gt_corners'].append(corners_3D)
+                # else:
+                #     for crnr in sample_info['gt_corners']:
+                #         if not np.array_equal(corners_3D, crnr):
+                #             sample_info['gt_corners'].append(corners_3D)
 
         return sample_info
 
