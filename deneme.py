@@ -4,11 +4,12 @@ import argparse
 import yaml
 import torch
 import numpy as np
+import cv2
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-from Utils.visualization import visualize_result, show_image_with_boxes
+from Utils.visualization import draw_projected_box3d, show_lidar_with_boxes
 from Backbone.pointfusion import Fusion
 from DataProcess.kitti_dataset import KittiDataset
 
@@ -63,11 +64,14 @@ def train_one_epoch(
     t = np.zeros((4, 8, 3))
     for itr, batch in enumerate(train_loader):
         img, points = batch['roi_img'], batch['roi_pc']
+        amk = points[1]
         gt_pts_offsets, gt_corners = batch['gt_pts_offsets'], batch['gt_corners']
-        img = torch.from_numpy(img).float().cuda(non_blocking=True).float()
-        points = torch.from_numpy(points).float().cuda(non_blocking=True).float()
-        gt_pts_offsets = torch.from_numpy(gt_pts_offsets).float().cuda(non_blocking=True).float()
-        gt_corners = torch.from_numpy(gt_corners).float().cuda(non_blocking=True).float()
+        cor = gt_corners[1]
+        images = batch['images']
+        img = torch.from_numpy(img).cuda(non_blocking=True).float()
+        points = torch.from_numpy(points).cuda(non_blocking=True).float()
+        gt_pts_offsets = torch.from_numpy(gt_pts_offsets).cuda(non_blocking=True).float()
+        gt_corners = torch.from_numpy(gt_corners).cuda(non_blocking=True).float()
 
         optimizer.zero_grad()
 
@@ -96,9 +100,8 @@ def train_one_epoch(
         p = p_offset
         a = anchor_points
         t = truth_boxes
-        # show_image_with_boxes(img[0], anchor_points, truth_boxes)
-        # show_image_with_boxes(img[0], anchor_points, truth_boxes)
-        # visualize_result(anchor_points, p_offset, truth_boxes)
+        show_lidar_with_boxes(lidar=amk, corners3D_velo=cor)
+        # cv2.destroyAllWindows()
         # loss_epoch = running_loss / cfg['train']['batch_size']
         if itr % 10 == 0 and itr != 0:
             last_loss = running_loss / 10 # loss per batch

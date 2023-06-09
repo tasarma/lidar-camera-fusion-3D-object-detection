@@ -135,21 +135,21 @@ def draw_gt_boxes3d(gt_boxes3d,
     # mlab.show()
     return fig
 
-def show_lidar_with_boxes(lidar, labels, calib):
+def show_lidar_with_boxes(lidar, labels=None, calib=None, corners3D_velo=None):
     fig = mlab.figure(bgcolor=(0, 0, 0), size=(1280, 720))
 
     mlab.points3d(lidar[:, 0], lidar[:, 1], lidar[:, 2], mode="point", colormap="spectral", figure=fig)
     
     # Plot the bounding boxes
-    for obj in labels:
-        if obj.cls_type == 'DontCare':
-            continue
-
-        box3d_pts_2d, box3d_pts_3d = kitti_utils.compute_box_3d(obj, calib.P2)
-        corners_3d_in_velo = calib.project_rect_to_velo(box3d_pts_3d)
-        print(corners_3d_in_velo)
-        draw_gt_boxes3d([corners_3d_in_velo], fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
-
+    if labels != None:
+        for obj in labels:
+            if obj.cls_type == 'DontCare':
+                continue
+            box3d_pts_2d, box3d_pts_3d = kitti_utils.compute_box_3d(obj, calib.P2)
+            corners_3d_in_velo = calib.project_rect_to_velo(box3d_pts_3d)
+            # print(corners_3d_in_velo)
+            draw_gt_boxes3d([corners_3d_in_velo], fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
+    draw_gt_boxes3d([corners3D_velo], fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
     mlab.view(azimuth=230, distance=50)
     # mlab.savefig(filename='examples/kitti_3dbox_to_cloud.png')
     mlab.show()

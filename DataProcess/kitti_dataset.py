@@ -95,6 +95,7 @@ class KittiDataset(Dataset):
         sample_info['roi_pc'] = []
         sample_info['gt_pts_offsets'] = []
         sample_info['gt_corners'] = []
+        sample_info['images'] = []
         # return img, calib, obj_list
 
         for i, obj in enumerate(obj_list):
@@ -104,6 +105,7 @@ class KittiDataset(Dataset):
 
             # Apply a mask to select points in the point cloud
             if len(roi_pc) >= 300:
+                sample_info['images'].append(img)
                 mask = self.__seperate_points(roi_pc)
                 roi_pc = roi_pc[mask, :]
                 corner3D_info = kitti_utils.get_boxes3d(obj)
