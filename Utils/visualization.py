@@ -129,9 +129,9 @@ def show_lidar_with_boxes(lidar, labels, calib):
 
 
 def render_pcl(pc, box =  [], name = "default"):
-   print(pc)
+#    print(pc)
    fig=plt.figure(name)
-   ax = fig.gca(projection='3d')
+   ax = fig.add_subplot(projection='3d')
     
    X = pc[0]
    Y = pc[1]

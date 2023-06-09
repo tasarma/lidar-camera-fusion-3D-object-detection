@@ -5,6 +5,7 @@ import yaml
 import torch
 import numpy as np
 import torch.nn as nn
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 from Utils.visualization import visualize_result
@@ -35,6 +36,13 @@ def unsupervisedLoss(pred_offsets, pred_scores, targets):
     # loss = loss.mean() # [1]
     return loss
 
+def saveCheckpoint(model, epoch, optimizer, loss, path):
+    torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss
+                }, path)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -47,21 +55,20 @@ def train_one_epoch(
         cfg: dict
         ):
     model.train()
-    log_print(f'===============TRAIN EPOCH {epoch}================')
-    loss_temp = 0
-    loss_epoch = 0
+    log_print(f'===============TRAIN EPOCH {epoch+1}================')
+    running_loss = 0.
+    last_loss = 0.
     
     for itr, batch in enumerate(train_loader):
         img, points = batch['roi_img'], batch['roi_pc']
         targets, gt_corners = batch['corner_offsets'], batch['gt_corners']
         
-        img = torch.from_numpy(img).cuda(non_blocking=True).float()
-        points = torch.from_numpy(points).cuda(non_blocking=True).float()
-        targets = torch.from_numpy(targets).cuda(non_blocking=True).float()
-        gt_corners = torch.from_numpy(gt_corners).cuda(non_blocking=True).float()
+        img = torch.from_numpy(img).float()#.cuda(non_blocking=True).float()
+        points = torch.from_numpy(points).float()#.cuda(non_blocking=True).float()
+        targets = torch.from_numpy(targets).float()#.cuda(non_blocking=True).float()
+        gt_corners = torch.from_numpy(gt_corners).float()#.cuda(non_blocking=True).float()
 
         optimizer.zero_grad()
-
 
         pred_offset, scores = model(img, points)
         
@@ -71,34 +78,30 @@ def train_one_epoch(
         loss = loss.sum(dim=1) / 400 # Number of points
         loss = loss.sum(dim=0) / cfg['train']['batch_size']
 
-        loss_temp += loss.item()
-        loss_epoch += loss.item()
-
         loss.backward()
         optimizer.step()
 
+        running_loss += loss.item()
         # Finding anchor point and predicted offset based on maximum score
-        max_inds = scores.max(dim=1)[1].cpu().numpy()
-        p_offset = np.zeros((4, 8, 3))
-        anchor_points = np.zeros((4, 3))
-        truth_boxes = np.zeros((4, 8, 3))
-        for i in range(0, 4):
-            p_offset[i] = pred_offset[i][max_inds[i]].cpu().detach().numpy()
-            anchor_points[i] = points[i][max_inds[i]].cpu().numpy()
-            truth_boxes[i] = gt_corners[i].cpu().numpy()
+        # max_inds = scores.max(dim=1)[1].cpu().numpy()
+        # p_offset = np.zeros((4, 8, 3))
+        # anchor_points = np.zeros((4, 3))
+        # truth_boxes = np.zeros((4, 8, 3))
+        # for i in range(0, 4):
+        #     p_offset[i] = pred_offset[i][max_inds[i]].cpu().detach().numpy()
+        #     anchor_points[i] = points[i][max_inds[i]].cpu().numpy()
+        #     truth_boxes[i] = gt_corners[i].cpu().numpy()
         
-        visualize_result(p_offset, anchor_points, truth_boxes)
-        # if itr % 10 == 0 and itr != 0:
-        #     loss_temp /= 10
-        #     print(f"Epoch [{epoch}/{cfg['train']['num_epochs']}], Step [{itr}] Loss: {loss_temp:.4f}")
-        #     loss_temp = 0
-    # loss_epoch /= nusc_iters_per_epoch
-    # # logger.scalar_summary('loss', loss_epoch, epoch)
+        # visualize_result(p_offset, anchor_points, truth_boxes)
+        # loss_epoch = running_loss / cfg['train']['batch_size']
+        if itr % 10 == 0 and itr != 0:
+            last_loss = running_loss / 10 # loss per batch
+            print(f"Epoch [{epoch}/{cfg['train']['num_epochs']}], Step [{itr}] Loss: {last_loss:.4f}")
+            # saveCheckpoint(model, epoch, optimizer, loss, f'models/pointfusion_{itr}.pth')
+            running_loss = 0
     
-    # print(f"Loss for Epoch {epoch} is {loss_epoch}")
-    # loss_epoch = 0
-
-
+    print(f"Loss for Epoch {epoch+1} is {last_loss} and running_loss is {running_loss}")
+    return last_loss
 
 
 if __name__ == '__main__':
@@ -126,5 +129,11 @@ if __name__ == '__main__':
         #                          shuffle=True, collate_fn=data.collate_fn
         #                          )
 
+        loss_values = []
         for i in range(epoch):
-            train_one_epoch(model, train_loader, optimizer, i, cfg)
+            loss = train_one_epoch(model, train_loader, optimizer, i, cfg)
+            loss_values.append(loss)
+        
+        print('Finished Training')
+        plt.plot(np.array(loss_values), 'r')
+        plt.show()
