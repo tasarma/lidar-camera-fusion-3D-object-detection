@@ -54,6 +54,7 @@ def show_image_with_boxes(img, objects, calib, show3d=False):
         cv2.imshow("img", img2)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+        cv2.imwrite('savedIMG.jpg', img2)
         return img2
     else:
         cv2.imshow("img", img)
@@ -194,3 +195,42 @@ def visualize_result(anchor_point, offset, gt_boxes):
     #   render_pcl(final_pred.T, name = str(i) + ' pred')
     #   render_pcl(gt_boxes[i].T, name = str(i) + ' gt')
 #    plt.show()
+
+
+def draw_lidar_bbox(points, objs=None, calib=None):
+    # Create an Open3D point cloud from the input points
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+
+    # Create an Open3D visualizer
+    vis = o3d.visualization.Visualizer()
+    vis.create_window()
+
+    # Add the point cloud to the visualizer
+    vis.add_geometry(pcd)
+
+    # Define colors for different classes
+    colors = [[1, 0, 0],  # Car: Red
+              [0, 1, 0],  # Pedestrian: Green
+              [0, 0, 1]]  # Cyclist: Blue
+
+    # Iterate through each bounding box    
+    for obj in objs:
+        box3d_pts_2d, box3d_pts_3d = kitti_utils.compute_box_3d(obj, calib.P2)
+        corners_3d_in_velo = calib.project_rect_to_velo(box3d_pts_3d)
+
+        lines = [[0, 1], [1, 2], [2, 3], [3, 0],  # Top rectangle
+                 [4, 5], [5, 6], [6, 7], [7, 4],  # Bottom rectangle
+                 [0, 4], [1, 5], [2, 6], [3, 7]]  # Connecting lines
+
+        line_set = o3d.geometry.LineSet()
+        line_set.points = o3d.utility.Vector3dVector(corners_3d_in_velo)
+        line_set.lines = o3d.utility.Vector2iVector(lines)
+        line_set.colors = o3d.utility.Vector3dVector([colors[2]])
+
+        # Add the bounding box to the visualizer
+        vis.add_geometry(line_set)
+
+    # Run the visualizer
+    vis.run()
+    vis.destroy_window()
