@@ -5,6 +5,9 @@ import numpy as np
 
 
 class STN3d(nn.Module):
+    """
+    Spatial Transformer Network for 3D point clouds.
+    """
     def __init__(self, channel=3):
         super(STN3d, self).__init__()
         self.conv1 = torch.nn.Conv1d(channel, 64, 1)
@@ -24,6 +27,15 @@ class STN3d(nn.Module):
         self.iden = torch.from_numpy(np.array([1, 0, 0, 0, 1, 0, 0, 0, 1]).astype(np.float32)).reshape(1, 9)
 
     def forward(self, x):
+        """
+        Forward pass of STN3d.
+
+        Args:
+            x (torch.Tensor): Input tensor [B, 3, N].
+
+        Returns:
+            torch.Tensor: Transformation matrix [B, 3, 3].
+        """
         batchsize = x.size()[0]
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
@@ -42,6 +54,9 @@ class STN3d(nn.Module):
 
 
 class STNkd(nn.Module):
+    """
+    Spatial Transformer Network for k-dimensional features.
+    """
     def __init__(self, k=64):
         super(STNkd, self).__init__()
         self.conv1 = torch.nn.Conv1d(k, 64, 1)
@@ -62,6 +77,15 @@ class STNkd(nn.Module):
         self.iden = torch.from_numpy(np.eye(self.k).flatten().astype(np.float32)).reshape(1, self.k * self.k)
 
     def forward(self, x):
+        """
+        Forward pass of STNkd.
+
+        Args:
+            x (torch.Tensor): Input tensor [B, k, N].
+
+        Returns:
+            torch.Tensor: Transformation matrix [B, k, k].
+        """
         batchsize = x.size()[0]
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
@@ -120,6 +144,18 @@ class PointNetEncoder(nn.Module):
         self.global_feat = global_feature
          
     def forward(self, pos, x=None):
+        """
+        Forward pass of PointNetEncoder.
+
+        Args:
+            pos (torch.Tensor or dict): Input point cloud [B, 3, N] or dictionary containing 'x'.
+            x (torch.Tensor, optional): Optional input features. Defaults to None.
+
+        Returns:
+            tuple:
+                global_feat (torch.Tensor): Global features [B, 1, 1024].
+                point_feat (torch.Tensor): Point features [B, 400, 64].
+        """
         if hasattr(pos, 'keys'):
             x = pos['x']
         if x is None:

@@ -194,6 +194,17 @@ class Calibration:
 
 
 def check_labels(objects) -> Tuple[np.ndarray, bool]:
+    """
+    Check and filter labels.
+
+    Args:
+        objects (List[Object3D]): List of Object3D instances.
+
+    Returns:
+        Tuple[np.ndarray, bool]:
+            labels (np.ndarray): Array of selected labels.
+            noObjectLabels (bool): True if no valid objects found.
+    """
     bbox_selected = []
     for obj in objects:
         if obj.cls_id != -1:
@@ -225,7 +236,15 @@ def get_boxes3d(obj: Object3D) -> np.ndarray:
 
 
 def roty(t):
-    # Rotation about the y-axis.
+    """
+    Rotation about the y-axis.
+
+    Args:
+        t (float): Rotation angle in radians.
+
+    Returns:
+        np.ndarray: Rotation matrix [3, 3].
+    """
     c = np.cos(t)
     s = np.sin(t)
     return np.array([[c, 0, s],
@@ -291,7 +310,14 @@ def box3d_to_corner3d(boxes3d: np.ndarray, rotate: bool = True) -> np.ndarray:
 
 def enlarge_box3d(boxes3d, extra_width):
     """
-    boxes3d: (N, 7) [x, y, z, h, w, l, ry]
+    Enlarge 3D bounding boxes.
+
+    Args:
+        boxes3d (np.ndarray or torch.Tensor): 3D boxes [N, 7].
+        extra_width (float): Amount to enlarge dimensions.
+
+    Returns:
+        np.ndarray or torch.Tensor: Enlarged boxes.
     """
     if isinstance(boxes3d, np.ndarray):
         large_boxes3d = boxes3d.copy()
@@ -305,9 +331,14 @@ def enlarge_box3d(boxes3d, extra_width):
 
 def in_hull(p, hull):
     """
-    p: (N, K) test points
-    hull: (M, K) M corners of a box
-    return (N) bool
+    Check if points are inside a convex hull.
+
+    Args:
+        p (np.ndarray): Test points [N, K].
+        hull (Delaunay or np.ndarray): Convex hull or points defining it [M, K].
+
+    Returns:
+        np.ndarray: Boolean array indicating if points are in hull [N].
     """
     try:
         if not isinstance(hull, Delaunay):
@@ -358,6 +389,17 @@ def compute_box_3d(obj, P):
     return corners_2d, np.transpose(corners_3d)
 
 def crop_image(img: np.ndarray, obj: Object3D, width: int=240) -> np.ndarray:
+    """
+    Crop the image based on the 2D bounding box of the object.
+
+    Args:
+        img (np.ndarray): Input image.
+        obj (Object3D): Object containing the bounding box.
+        width (int, optional): Output width (and height). Defaults to 240.
+
+    Returns:
+        np.ndarray: Cropped and resized image.
+    """
     l, t, r, b = obj.box2d.astype(int)
     scale_box = 0
     roi = img[t+scale_box:b+scale_box, l+scale_box:r+scale_box]
@@ -381,6 +423,16 @@ def crop_lidar(points: np.ndarray, obj: Object3D, calib: Calibration) -> np.ndar
     return cropped_pts
 
 def gt_pts_corner_offset(corners, cloud):
+    """
+    Compute offsets between point cloud and box corners.
+
+    Args:
+        corners (np.ndarray): Box corners [8, 3].
+        cloud (np.ndarray): Point cloud [N, 3].
+
+    Returns:
+        np.ndarray: Offsets [N, 8, 3].
+    """
     cnt = cloud.shape[0]  # Number of points in the cloud
     corner_offsets = cloud[:, np.newaxis, :] - corners  # Compute offsets
     

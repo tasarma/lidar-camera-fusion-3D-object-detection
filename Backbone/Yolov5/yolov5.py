@@ -4,12 +4,24 @@ import numpy as np
 import torchvision.models as models
 
 class YoloV5(torch.nn.Module):
+    """
+    YOLOv5 feature extractor.
+    """
     def __init__(self):
         super(YoloV5, self).__init__()
         self.model = self.__load_module()
         self.features = torch.nn.Sequential(*list(self.model.children())[:-1])
     
     def process_image(self, img: np.ndarray) -> np.ndarray:
+        """
+        Preprocess the input image for YOLOv5.
+
+        Args:
+            img (np.ndarray): Input image [H, W, 3].
+
+        Returns:
+            np.ndarray: Processed image tensor [1, 3, 640, 640].
+        """
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (640, 640))
         img = img.transpose(2, 0, 1)  # Convert to channels first format
@@ -27,6 +39,16 @@ class YoloV5(torch.nn.Module):
             return torch.hub.load('ultralytics/yolov5', 'custom', path='./yolov5s.pt')
 
     def forward(self, x, batch_size):
+        """
+        Forward pass of YOLOv5 feature extractor.
+
+        Args:
+            x (torch.Tensor): Input image tensor.
+            batch_size (int): Batch size.
+
+        Returns:
+            torch.Tensor: Extracted features [B, 1, 2048].
+        """
         # self.process_image(x)
         x = self.features(x)
         print(type(x), x.shape, x.size)
@@ -35,12 +57,25 @@ class YoloV5(torch.nn.Module):
 
 
 class ResNet50(torch.nn.Module):
+    """
+    ResNet50 feature extractor.
+    """
     def __init__(self):
         super(ResNet50, self).__init__()
         self.res50_model = models.resnet50(weights=True)
         self.features = torch.nn.Sequential(*list(self.res50_model.children())[:-1])
         
     def forward(self, x, batch_size):
+        """
+        Forward pass of ResNet50 feature extractor.
+
+        Args:
+            x (torch.Tensor): Input image tensor [B, H, W, 3].
+            batch_size (int): Batch size.
+
+        Returns:
+            torch.Tensor: Extracted features [B, 1, 2048].
+        """
         # self.process_image(x)
         x = x.permute(0, 3, 1, 2)
         x = self.features(x)

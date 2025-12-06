@@ -8,9 +8,16 @@ from Config.kitti_config import R0_inv, Tr_velo_to_cam_inv
 
 
 def inverse_rigid_trans(Tr: List[float]) -> np.ndarray:
-    ''' Inverse a rigid body transform matrix (3x4 as [R|t])
-        [R'|-R't; 0|1]
-    '''
+    """
+    Inverse a rigid body transform matrix (3x4 as [R|t]).
+    [R'|-R't; 0|1]
+
+    Args:
+        Tr (List[float]): Transformation matrix [3, 4].
+
+    Returns:
+        np.ndarray: Inverse transformation matrix [3, 4].
+    """
     inv_Tr = np.zeros_like(Tr)  # 3x4
     inv_Tr[0:3, 0:3] = np.transpose(Tr[0:3, 0:3])
     inv_Tr[0:3, 3] = np.dot(-np.transpose(Tr[0:3, 0:3]), Tr[0:3, 3])
@@ -19,10 +26,24 @@ def inverse_rigid_trans(Tr: List[float]) -> np.ndarray:
 
 def camera_to_lidar(x: float, y: float, z: float, 
                     V2C=None, R0=None, P2=None) -> Tuple[np.ndarray]:
+    """
+    Convert camera coordinates to LiDAR coordinates.
+
+    Args:
+        x (float): X coordinate in camera frame.
+        y (float): Y coordinate in camera frame.
+        z (float): Z coordinate in camera frame.
+        V2C (np.ndarray, optional): Velodyne to Camera transformation matrix.
+        R0 (np.ndarray, optional): Rectification matrix.
+        P2 (np.ndarray, optional): Projection matrix.
+
+    Returns:
+        Tuple[np.ndarray]: Coordinates in LiDAR frame (x, y, z).
+    """
     p = np.array([x, y, z, 1])
     if V2C is None or R0 is None:
-        p = np.matmul(R0_inv, p) # config. BURAYI DUZELT
-        p = np.matmul(Tr_velo_to_cam_inv, p) # config. BURAYI DUZELT
+        p = np.matmul(R0_inv, p)
+        p = np.matmul(Tr_velo_to_cam_inv, p)
     else:
         R0_i = np.zeros((4, 4))
         R0_i[:3, :3] = R0
@@ -35,6 +56,18 @@ def camera_to_lidar(x: float, y: float, z: float,
 
 def camera_to_lidar_box(boxes: np.ndarray, 
                         V2C=None, R0=None, P2=None) -> np.ndarray:
+    """
+    Convert 3D boxes from camera to LiDAR coordinates.
+
+    Args:
+        boxes (np.ndarray): 3D boxes in camera frame [N, 7].
+        V2C (np.ndarray, optional): Velodyne to Camera transformation matrix.
+        R0 (np.ndarray, optional): Rectification matrix.
+        P2 (np.ndarray, optional): Projection matrix.
+
+    Returns:
+        np.ndarray: 3D boxes in LiDAR frame [N, 7].
+    """
     # (N, 7) -> (N, 7) x,y,z,h,w,l,r
     ret = []
     for box in boxes:
@@ -47,10 +80,15 @@ def camera_to_lidar_box(boxes: np.ndarray,
 
 
 def project_to_image(pts_3d, P):
-    """ Project 3d points to image plane.
-      input: pts_3d: nx3 matrix
-             P:      3x4 projection matrix
-      output: pts_2d: nx2 matrix
+    """
+    Project 3d points to image plane.
+
+    Args:
+        pts_3d (np.ndarray): 3D points [N, 3].
+        P (np.ndarray): 3x4 projection matrix.
+
+    Returns:
+        np.ndarray: 2D points in image plane [N, 2].
     """
     n = pts_3d.shape[0]
     pts_3d_extend = np.hstack((pts_3d, np.ones((n, 1))))

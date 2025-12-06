@@ -1,5 +1,10 @@
 import numpy as np
 
+"""
+Configuration constants for the KITTI dataset.
+Includes class mappings, color definitions, and calibration matrices.
+"""
+
 CLASS_NAME_TO_ID = {
         'Car': 0,
         'Pedestrian': 1,

@@ -17,9 +17,17 @@ transform = transforms.Compose([
 
 
 def create_train_dataloader(config):
-    """Create dataloader for training"""
-    root = r'/home/tasarma/Playground/Tez/dataset/kitti'
-    batch_size = 4
+    """
+    Create dataloader for training.
+
+    Args:
+        config (dict): Configuration dictionary.
+
+    Returns:
+        DataLoader: Training dataloader.
+    """
+    root = config['dataset']['root_dir']
+    batch_size = config['train']['batch_size']
 
     train_dataset = KittiDataset(root=root)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)

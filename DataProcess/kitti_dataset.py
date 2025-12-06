@@ -17,12 +17,23 @@ from Config.kitti_config import CLASS_NAME_TO_ID
 
 
 class KittiDataset(Dataset):
+    """
+    PyTorch Dataset for the KITTI 3D Object Detection Dataset.
+    """
     def __init__(
             self,
             root: str,
             mode: str = 'train',
             num_samples: int = None
             ):
+        """
+        Initialize the KittiDataset.
+
+        Args:
+            root (str): Root directory of the dataset.
+            mode (str, optional): Mode of operation ('train' or 'test'). Defaults to 'train'.
+            num_samples (int, optional): Number of samples to use. Defaults to None (all samples).
+        """
         assert mode in ['train', 'test'] , f'Invalid Mode: {mode}'
         self.mode = mode
         self.npoints = 400
@@ -52,21 +63,57 @@ class KittiDataset(Dataset):
         return len(self.sample_id_list)
 
     def get_image(self, index: int) -> np.ndarray :
+        """
+        Get the image for a given index.
+
+        Args:
+            index (int): Sample index.
+
+        Returns:
+            np.ndarray: Image data [H, W, 3] in BGR format.
+        """
         image_file = os.path.join(self.image_dir, f'{index:06}.png')
         assert os.path.exists(image_file), 'File not exist'
         return cv2.imread(image_file) # (H, W, C) -> (H, W, 3) in BGR mode
 
     def get_lidar(self, index: int) -> np.ndarray:
+        """
+        Get the LiDAR point cloud for a given index.
+
+        Args:
+            index (int): Sample index.
+
+        Returns:
+            np.ndarray: LiDAR point cloud data [N, 4].
+        """
         lidar_file = os.path.join(self.lidar_dir, f'{index:06}.bin')
         assert os.path.exists(lidar_file), 'File not exist'
         return np.fromfile(lidar_file, dtype=np.float32).reshape(-1, 4)
 
     def get_calib(self, index: int) -> kitti_utils.Calibration:
+        """
+        Get the calibration data for a given index.
+
+        Args:
+            index (int): Sample index.
+
+        Returns:
+            kitti_utils.Calibration: Calibration object.
+        """
         calib_file = os.path.join(self.calib_dir, f'{index:06}.txt')
         assert os.path.exists(calib_file), 'File not exist'
         return kitti_utils.Calibration(calib_file)
 
     def get_label(self, index: int) -> List[Object3D] :
+        """
+        Get the labels for a given index.
+
+        Args:
+            index (int): Sample index.
+
+        Returns:
+            List[Object3D]: List of 3D objects.
+        """
         label_file = os.path.join(self.label_dir, f'{index:06}.txt')
         assert os.path.exists(label_file), f'File not exist {label_file}'
         return kitti_utils.read_label(label_file)
@@ -130,6 +177,15 @@ class KittiDataset(Dataset):
         return sample_info
 
     def filtrate_objects(self, obj_list: np.ndarray) -> List[Object3D]:
+        """
+        Filter objects based on the class whitelist.
+
+        Args:
+            obj_list (np.ndarray): List of objects to filter.
+
+        Returns:
+            List[Object3D]: Filtered list of objects.
+        """
         type_whitelist = self.classes
         if self.mode == 'train':
             type_whitelist = list(self.classes)
@@ -211,6 +267,21 @@ class KittiDataset(Dataset):
 
     def get_lidar_in_image_fov(self, pc_velo, calib: Calib, xmin, ymin, xmax, ymax,
                            clip_distance=0.0):
+        """
+        Filter LiDAR points to keep only those within the image field of view.
+
+        Args:
+            pc_velo (np.ndarray): LiDAR point cloud.
+            calib (Calib): Calibration object.
+            xmin (float): Minimum x-coordinate of the image.
+            ymin (float): Minimum y-coordinate of the image.
+            xmax (float): Maximum x-coordinate of the image.
+            ymax (float): Maximum y-coordinate of the image.
+            clip_distance (float, optional): Minimum distance to keep points. Defaults to 0.0.
+
+        Returns:
+            np.ndarray: Filtered LiDAR points.
+        """
         ''' Filter lidar points, keep those in image FOV '''
         pts_3d_rect, pts_2d, _ = calib.project_velo_to_image(pc_velo)
 
@@ -225,6 +296,15 @@ class KittiDataset(Dataset):
         return imgfov_pc_velo
 
     def collate_fn(self, batch):
+        """
+        Collate function for the DataLoader.
+
+        Args:
+            batch (list): List of samples from __getitem__.
+
+        Returns:
+            dict: Collated batch dictionary.
+        """
         batch_size = batch.__len__()
         ans_dict = {}
         

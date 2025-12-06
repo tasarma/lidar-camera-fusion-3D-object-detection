@@ -21,3 +21,5 @@ opencv-python
 seaborn
 open3d
 mayavi
+torch
+torchvision

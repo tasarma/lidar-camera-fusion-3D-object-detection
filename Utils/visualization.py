@@ -15,6 +15,15 @@ import Config.kitti_config as cnf
 from DataProcess.kitti_dataset import KittiDataset
 
 def resize_and_shift_bounding_boxes(boxes: List[KittiDataset]):
+    """
+    Resize and shift bounding boxes for data augmentation or visualization.
+
+    Args:
+        boxes (List[KittiDataset]): List of bounding box objects.
+
+    Returns:
+        List[KittiDataset]: List of modified bounding box objects.
+    """
     resized_boxes = []
     # boxes[0].
     for box in boxes:
@@ -40,7 +49,18 @@ def resize_and_shift_bounding_boxes(boxes: List[KittiDataset]):
 
 
 def show_image_with_boxes(img, objects, calib, show3d=False):
-    ''' Show image with 2D bounding boxes '''
+    """
+    Show image with 2D and optionally 3D bounding boxes.
+
+    Args:
+        img (np.ndarray): Input image.
+        objects (List[Object3D]): List of objects.
+        calib (Calibration): Calibration object.
+        show3d (bool, optional): Whether to show 3D boxes. Defaults to False.
+
+    Returns:
+        np.ndarray: Image with drawn boxes.
+    """
     img2 = np.copy(img)  # for 3d bbox
     # objects = resize_and_shift_bounding_boxes(objects)
     for obj in objects:
@@ -64,21 +84,29 @@ def show_image_with_boxes(img, objects, calib, show3d=False):
 
 
 def display_lidar(cloud):
+    """
+    Display LiDAR point cloud using Open3D.
+
+    Args:
+        cloud (np.ndarray): Point cloud data [N, 3].
+    """
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(cloud)
     o3d.visualization.draw_geometries([pcd])
 
 
 def draw_projected_box3d(image, qs, color=(255, 0, 255), thickness=2):
-    """ Draw 3d bounding box in image
-        qs: (8,3) array of vertices for the 3d box in following order:
-            1 -------- 0
-           /|         /|
-          2 -------- 3 .
-          | |        | |
-          . 5 -------- 4
-          |/         |/
-          6 -------- 7
+    """
+    Draw 3d bounding box in image.
+
+    Args:
+        image (np.ndarray): Input image.
+        qs (np.ndarray): (8,3) array of vertices for the 3d box.
+        color (tuple, optional): Color of the box. Defaults to (255, 0, 255).
+        thickness (int, optional): Thickness of the lines. Defaults to 2.
+
+    Returns:
+        np.ndarray: Image with drawn box.
     """
     qs = qs.astype(np.int32)
     for k in range(0, 4):
@@ -101,18 +129,21 @@ def draw_gt_boxes3d(gt_boxes3d,
                     text_scale=(1, 1, 1),
                     color_list=None
     ):
-    ''' Draw 3D bounding boxes
+    """
+    Draw 3D bounding boxes using Mayavi.
+
     Args:
-        gt_boxes3d: numpy array (n,8,3) for XYZs of the box corners
-        fig: mayavi figure handler
-        color: RGB value tuple in range (0,1), box line color
-        line_width: box line width
-        draw_text: boolean, if true, write box indices beside boxes
-        text_scale: three number tuple
-        color_list: a list of RGB tuple, if not None, overwrite color.
+        gt_boxes3d (np.ndarray): numpy array (n,8,3) for XYZs of the box corners.
+        fig (mayavi.figure): mayavi figure handler.
+        color (tuple, optional): RGB value tuple in range (0,1), box line color. Defaults to (1, 1, 1).
+        line_width (int, optional): box line width. Defaults to 2.
+        draw_text (bool, optional): if true, write box indices beside boxes. Defaults to True.
+        text_scale (tuple, optional): three number tuple. Defaults to (1, 1, 1).
+        color_list (list, optional): a list of RGB tuple, if not None, overwrite color. Defaults to None.
+
     Returns:
-        fig: updated fig
-    '''
+        mayavi.figure: updated fig.
+    """
     num = len(gt_boxes3d)
     for n in range(num):
         b = gt_boxes3d[n]
@@ -190,8 +221,8 @@ def visualize_result(anchor_point, offset, gt_boxes):
    for i in range(1):
       final_pred = np.zeros((8,3))
       final_pred = offset[i] + anchor_point[i, None]
-      draw_gt_boxes3d(final_pred.T, fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
-      draw_gt_boxes3d(gt_boxes[i].T, fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
+      draw_gt_boxes3d(np.array([final_pred]), fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
+      draw_gt_boxes3d(np.array([gt_boxes[i]]), fig=fig, color=(0, 1, 1), line_width=2, draw_text=True)
     #   render_pcl(final_pred.T, name = str(i) + ' pred')
     #   render_pcl(gt_boxes[i].T, name = str(i) + ' gt')
 #    plt.show()

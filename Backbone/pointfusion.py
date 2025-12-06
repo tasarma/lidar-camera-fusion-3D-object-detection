@@ -11,11 +11,24 @@ from .Yolov5.yolov5 import YoloV5, ResNet50
 
 
 class Fusion(nn.Module):
-    def __init__(self):
+    """
+    Sensor fusion model combining image and point cloud features.
+    """
+    def __init__(self, backbone='resnet'):
+        """
+        Initialize the Fusion model components.
+        
+        Args:
+            backbone (str): Backbone type ('resnet' or 'yolov5').
+        """
         super().__init__()
         self.pointnet = PointNetEncoder()
-        # self.yolov5 = YoloV5()
-        self.resnet = ResNet50()
+        
+        self.backbone_type = backbone
+        if self.backbone_type == 'yolov5':
+            self.backbone = YoloV5()
+        else:
+            self.backbone = ResNet50()
 
         self.fc1 = nn.Linear(3136, 512)
         self.fc2 = nn.Linear(512, 128)
@@ -24,11 +37,23 @@ class Fusion(nn.Module):
         self.fc5 = nn.Linear(128, 1) 
 
     def forward(self, img, pts):
+        """
+        Forward pass of the fusion model.
+
+        Args:
+            img (torch.Tensor): Input images [B, C, H, W].
+            pts (torch.Tensor): Input point clouds [B, D, N].
+
+        Returns:
+            tuple:
+                corner_offsets (torch.Tensor): Predicted corner offsets [B, D, 8, 3].
+                scores (torch.Tensor): Predicted confidence scores [B, D].
+        """
         batch_size = img.size()[0]
         B, D, N = pts.size() # Batch size, number of points, number of channels
 
         # base_feat = self.yolov5(img, batch_size)
-        base_feat = self.resnet(img, batch_size)
+        base_feat = self.backbone(img, batch_size)
         # print(base_feat.shape)
         global_feat, point_feat= self.pointnet(pts)
 
