@@ -1,63 +1,102 @@
-# Bitirme Project
+# 3D Object Detection with Sensor Fusion
 
-This project implements a sensor fusion model for 3D object detection, designed to work with the KITTI dataset. It combines image data and point cloud data using a deep learning approach inspired by PointFusion.
+This project implements a robust sensor fusion model for 3D object detection, specifically designed for autonomous driving applications using the KITTI dataset. It leverages a deep learning approach inspired by PointFusion to combine high-resolution image data with precise LiDAR point cloud data.
 
 ## Features
 
-- **Sensor Fusion**: Combines Camera (ResNet/YOLOv5) and LiDAR (PointNet) features.
-- **Configurable Backbone**: Choose between ResNet50 and YOLOv5 for image feature extraction.
-- **Unsupervised Learning**: Uses an unsupervised loss function for training.
-- **Validation & Logging**: Integrated validation loop and WandB logging.
-- **Inference**: Script to run inference on new samples.
+- **Multi-Modal Sensor Fusion**: Seamlessly integrates features from Camera (RGB) and LiDAR (Point Cloud) to improve detection accuracy.
+- **Flexible Backbone Architecture**: 
+    - **Image Stream**: Configurable to use either **ResNet50** for deep feature extraction or **YOLOv5** for real-time performance.
+    - **LiDAR Stream**: Utilizes **PointNet** to process raw point clouds directly.
+- **Unsupervised Learning Capability**: Includes an unsupervised loss function option for training without dense annotations.
+- **Robust Training Pipeline**: Integrated validation loop, checkpointing, and real-time logging with **WandB**.
+- **Inference & Visualization**: Tools to run inference on new samples and visualize 3D bounding boxes on point clouds.
 
 ## Project Structure
 
-- **Backbone/**: Neural network models (`pointfusion.py`, `Pointnet/`, `Yolov5/`).
-- **Config/**: Configuration files (`train_test.yaml`, `kitti_config.py`).
-- **DataProcess/**: Data loading and preprocessing (`kitti_dataset.py`, `kitti_utils.py`).
-- **Utils/**: Visualization and utility functions.
-- **train.py**: Main training script.
-- **inference.py**: Inference script.
+The repository is organized as follows:
 
-## Requirements
-
-Install the required dependencies:
-
-```bash
-pip install -r requirements.txt
-```
+- **`Backbone/`**: Contains the neural network model definitions.
+    - `pointfusion.py`: The core fusion module.
+    - `Pointnet/`: PointNet implementation for LiDAR processing.
+    - `Yolov5/`: YOLOv5 integration for image processing.
+- **`Config/`**: Configuration management.
+    - `train_test.yaml`: Main configuration file for training and testing parameters.
+    - `kitti_config.py`: KITTI-specific constants and settings.
+- **`DataProcess/`**: Data loading and preprocessing pipelines.
+    - `kitti_dataset.py`: PyTorch Dataset implementation for KITTI.
+    - `kitti_utils.py`: Utilities for geometry and data transformation.
+- **`Utils/`**: Helper functions for visualization and metrics.
+- **`train.py`**: Main script for training the model.
+- **`inference.py`**: Script for running inference and generating results.
 
 ## Installation
 
-1. Clone the repository.
-2. Install dependencies.
-3. Prepare the KITTI dataset.
+### Prerequisites
+- Linux OS
+- Python 3.8+
+- CUDA-enabled GPU (recommended)
 
-## Configuration
+### Steps
 
-Configure the project in `Config/train_test.yaml`:
+1. **Clone the Repository**
+   ```bash
+   git clone <repository_url>
+   ```
 
-```yaml
-dataset:
-  root_dir: /path/to/kitti/dataset
-  backbone: resnet # or yolov5
+2. **Install Dependencies**
+   It is recommended to use a virtual environment (e.g., Conda or venv).
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-train:
-  wandb:
-    use: true
-    project: bitirme_project
-```
+3. **Prepare the Dataset**
+   Download the [KITTI 3D Object Detection Dataset](http://www.cvlibs.net/datasets/kitti/eval_object.php?benchmark=3d).
+   Update the `root_dir` in `Config/train_test.yaml` to point to your dataset location:
+   ```yaml
+   dataset:
+     root_dir: /path/to/your/kitti/dataset
+   ```
 
 ## Usage
 
 ### Training
 
+To start training the model, run:
+
 ```bash
 python train.py
 ```
 
+You can modify training parameters like batch size, learning rate, and backbone choice in `Config/train_test.yaml`.
+
 ### Inference
+
+To run inference on the test set or specific samples:
 
 ```bash
 python inference.py --checkpoint checkpoints/best_model.pth --visualize
 ```
+
+### Visualization
+
+The project includes tools to visualize the 3D bounding boxes on the LiDAR point cloud. Below is an example of the output, showing detected vehicles with their estimated 3D bounding boxes.
+
+![3D Bounding Box Visualization](assets/3d_bbox_example.png)
+
+*Figure 1: Visualization of 3D bounding boxes on a LiDAR point cloud.*
+
+## Configuration
+
+The `Config/train_test.yaml` file allows you to customize the experiment:
+
+```yaml
+dataset:
+  backbone: resnet # Options: 'resnet' or 'yolov5'
+```
+
+## References
+
+- [PointFusion: Deep Sensor Fusion for 3D Bounding Box Estimation](https://arxiv.org/abs/1711.10871)
+- [PointNet: Deep Learning on Point Sets for 3D Classification and Segmentation](https://arxiv.org/abs/1612.00593)
+- [YOLOv5](https://github.com/ultralytics/yolov5)
